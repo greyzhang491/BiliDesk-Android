@@ -344,7 +344,9 @@
     },
     {
       "path": "app/src/test/java/dev/bilidesk/android/download/RangeDownloaderTest.kt",
-      "sha256": "a0e3ae7c6c570aeecdc80a44bf133af8d468ea0d6c9313a59a50fd468664615b"
+      "sha256": "bd4cd2613eb21af11d673bbba2d6091e7d27bd2266002802bef36f1396f33d00",
+      "originalVerifiedSourceSha256": "a0e3ae7c6c570aeecdc80a44bf133af8d468ea0d6c9313a59a50fd468664615b",
+      "change": "Test-only: bind and request explicit IPv4 loopback for reconnect portability. Runtime source and verified APK unchanged."
     },
     {
       "path": "gradle/wrapper/gradle-wrapper.jar",

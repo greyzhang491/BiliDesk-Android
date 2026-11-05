@@ -12,6 +12,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.net.InetAddress
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
@@ -46,8 +47,12 @@ class RangeDownloaderTest {
                 offsets.add(request.getHeader("Range")!!.substringAfter('=').substringBefore('-').toInt())
                 return range(request).apply { if (offsets.size == 1) setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY) }
             } }
-            server.start(); val file = File(temporary.root, "broken.part")
-            engine().download(listOf(server.url("/video").toString()), file, "sample", "https://www.bilibili.com/")
+            // A reconnect must use the interface this mock server actually binds.
+            // localhost can also resolve to ::1 on Linux, where no server is listening.
+            server.start(InetAddress.getByName("127.0.0.1"), 0)
+            val url = server.url("/video").newBuilder().host("127.0.0.1").build().toString()
+            val file = File(temporary.root, "broken.part")
+            engine().download(listOf(url), file, "sample", "https://www.bilibili.com/")
             assertTrue(offsets[1] in 1 until 65536); assertArrayEquals(bytes, file.readBytes())
         }
     }
