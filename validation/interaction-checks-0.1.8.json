@@ -1,0 +1,134 @@
+{
+  "version": "0.1.8",
+  "versionCode": 9,
+  "date": "2026-11-05",
+  "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+  "currentTestApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2",
+  "instrumentationApks": [
+    "653075ddca87f5143bfdc332145c9441b027c13cc8b6a49b88018c9c8eb4a895",
+    "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+  ],
+  "instrumentationChanges": "The application APK is identical across all final runs. Instrumentation synchronization and the pause predicate were strengthened between runs; each actual test APK is separately retained and hash-verified. Unchanged, completed scenarios are not re-counted.",
+  "jvmTests": {
+    "passed": 114,
+    "failed": 0,
+    "newMusicAndSocialTests": 19
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 36
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 11,
+    "tabletDistinctScenarios": 8,
+    "runs": [
+      {
+        "run": "018-phone-social-final",
+        "passed": 3,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "653075ddca87f5143bfdc332145c9441b027c13cc8b6a49b88018c9c8eb4a895"
+      },
+      {
+        "run": "018-phone-music-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "653075ddca87f5143bfdc332145c9441b027c13cc8b6a49b88018c9c8eb4a895"
+      },
+      {
+        "run": "018-phone-interactions-final",
+        "passed": 2,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-phone-actions-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-phone-immersive-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-phone-short-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-phone-cache-options-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-phone-cache-recovery-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-tablet-social-final",
+        "passed": 3,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-tablet-music-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-tablet-interactions-final",
+        "passed": 2,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-tablet-actions-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      },
+      {
+        "run": "018-tablet-layout-final",
+        "passed": 1,
+        "apkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+        "testApkSha256": "85f0310015d245bc9b7495b90ef2dd0d107ffccaae6287dc00b44e42ee6aeeb2"
+      }
+    ]
+  },
+  "coverage": [
+    "relationship read/follow/unfollow UI",
+    "comment like/unlike, nested replies, server-backed sorting",
+    "private favorite folder creation with CSRF",
+    "UGC/multi-P selection and durable multiple playlists",
+    "saving/deleting playlists preserves playing queue",
+    "Media3 actual audio-only resource reads; explicit original-video decoding",
+    "music styles and persisted settings",
+    "bottom three controls centered, equally spaced, aligned in three styles",
+    "locked-speed pause/resume via touch",
+    "lyrics, mini-player, background, MediaController next",
+    "short interactions, fullscreen/tablet layouts",
+    "audio/video cache variants, download pause/recovery/remux/offline decoding"
+  ],
+  "mediaEvidence": "Media3 onLoadStarted URI records and real decoder counters; separate local AAC/AVC streams, plus intercepted API video-CDN probe URLs. No real network byte billing measurement.",
+  "intermediateFindings": [
+    "Test fixture syntax and main-thread assertion fixed.",
+    "Removed tutorial assertion replaced by actual comment content assertion.",
+    "API35 UIAutomator cache refreshed; root music navigation awaited before selecting its library button. Shared-process fixture runs had short playback failures; isolated processes are verified separately, with original failures retained and excluded from final counts."
+  ],
+  "sameUpgradeCertificateAs017": true,
+  "alignment16Kb": true,
+  "platformResponses": "Explicit fake accounts and offline interceptors; independent test media and placeholder cover images.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliNetworkingRetestPassed": false,
+  "resetVoucherUsed": false,
+  "previousAccountRecoveryEvidence": "0.1.7 verification is retained separately; this update does not re-label it as a new system-network test."
+}

@@ -1,0 +1,407 @@
+{
+  "version": "0.1.8",
+  "applicationSourceMatchesTestedDelivery": true,
+  "verifiedPreviewApkSha256": "99605daad1cc042c6500afead715692e93822ffb4a218c1f45174aebf633efe6",
+  "applicationAndBuildFiles": [
+    {
+      "path": "app/build.gradle.kts",
+      "sha256": "a5d763d7fee79bc369a10d5316e0c9a73eaabece49aa01b06c29a351f9276d0f"
+    },
+    {
+      "path": "app/proguard-rules.pro",
+      "sha256": "f9dfb060acfc2433ddb69c8e198e4da968cc0351e0a707d85554d5864169c970"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/AccountReadDeviceTest.kt",
+      "sha256": "b94234ff43e30a1f92bd08ae715c651c24446c8b0d9bf8a99e9ac9892d22875f"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/AccountReconnectUiDeviceTest.kt",
+      "sha256": "b47ec064fd822a75ff862614d0abcac7dbc763e3734dc569bac78b44c110726c"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/AccountUiDeviceTest.kt",
+      "sha256": "17ab3094b3df0d6e89ee58851fc1a8341bac82ccf48ab58f6e827f1488ffa05e"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/CacheDownloadDeviceTest.kt",
+      "sha256": "b045fe61877a530d0d2d8d34b012603a54ed523ab06fe374d14dc676d6570db6"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/CacheOptionsDeviceTest.kt",
+      "sha256": "dd16f9f91d1bed507cc7c2a36cab36e37ecb2a51ca3de829a12ada868eeb6baa"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/CacheRecoveryDeviceTest.kt",
+      "sha256": "8f7a995a0b0711c7c2490af16f773c78e9ccc6774bdb0e350942165f5f8bc2a3"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/CoinPanelDeviceTest.kt",
+      "sha256": "3731c1623cf2008cfe9583caada598a01905ad2632e602ea2be3eeb0f4a35baf"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/DanmakuRenderDeviceTest.kt",
+      "sha256": "ff644e6aef1fff566f6e1ec26ce78ffe01933e78e005b1749abde9e4aa41d6eb"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/FeedAndStorageDeviceTest.kt",
+      "sha256": "fccc7a024b0a15dbf7f869b5b51c0d2a32b4625e3e3bfb7079572fdad2fa15b1"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/FeedDensityDeviceTest.kt",
+      "sha256": "b558b81d9e0a137a5304add976682e0cadfb9a82c4d975f52aa447caabd0d04a"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/ImmersiveGesturesDeviceTest.kt",
+      "sha256": "ea04611efc93b9fd83f2f10db7a63bb495a444f951e5780e5c2ab1a1e53abcd6"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/InteractionFixture.kt",
+      "sha256": "cb6ded93c5fb12e3abae3f7df788cbfd58f70000267df0e73e96b3a81df869f6"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/MusicModeDeviceTest.kt",
+      "sha256": "1481183322c1e3ab21648d1d64de417651131c4af21ee5cf79407ef5533b7bdf"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/MusicTestMedia.kt",
+      "sha256": "c3754135e97a5db46d0df5c3f3cd52a47413a3675d1966010b90aaff317d190d"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/NewInteractionsDeviceTest.kt",
+      "sha256": "82e4e6c9eee633779a55fcd4b826d67d4a7e27aaed2b0b8c9f9787c796c83fd9"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/PlaybackDeviceTest.kt",
+      "sha256": "9ba7ccf6edb08dff780e9ac3cc6aa8be06840e3344fff79a16a9854d26ea40fa"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/PlayerUiDeviceTest.kt",
+      "sha256": "0842b3125feaa3ec9473e0be4607785e7e99272ad3f603fb0eccb5870db2c5ba"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/SessionRecoveryDeviceTest.kt",
+      "sha256": "69b6e4ae249d334d35d6e11d8bae055cceed3e5d639a30eb8be395e53d3414c0"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/ShortActionsDeviceTest.kt",
+      "sha256": "2d2cfac63d024f6e17dab4f63c846eaf684c8ed2754a6f83158cf2f01af206c6"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/ShortVideoDeviceTest.kt",
+      "sha256": "2b0bd34703b42cdb0c6ef7f95762c55617836343067d6a406677bf8804fb8cde"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/SmokeTest.kt",
+      "sha256": "d3e8991ba920b33655e34ea29f4aed0f20e3dcb410f94efb680fe537a0a31997"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/SocialMusicDeviceTest.kt",
+      "sha256": "239d02e6118e494e747a8a69db868443031984dba6f8b8644ed0c42f9c357efa"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/TabletInteractionDeviceTest.kt",
+      "sha256": "635c14cf05619076d35b66bb7e614710e1fecb01703018d19229bd1e7d2efe05"
+    },
+    {
+      "path": "app/src/androidTest/java/dev/bilidesk/android/VideoTouchInput.kt",
+      "sha256": "2d03e78d6247cbc7c53301c0f5aa0c62b5c90acac59f7d0811d0d7bfc05f662e"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "sha256": "98dd4c37b1122da010d34fae33c29ef2b19e94a064b4cbe6604e8a7a6c4dc0de"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/BiliDeskApplication.kt",
+      "sha256": "698a7c8e00e9787214b5670351adfd35a69420d59de8cfe3354a6c59e59b6251"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/AccountNetworkMonitor.kt",
+      "sha256": "26893edddcddf0b624d71cf32244a0b8267af638571276bacc2151d1cff200b4"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/AccountSession.kt",
+      "sha256": "c35f1ede98316796e69df84a81593d2e3548b0d70015b99401930ad48181faa1"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/AccountWriteClient.kt",
+      "sha256": "063baadec3b488f153fc5c406985190caf2b57a5a5c4293b8a2ceaa6a2127f1f"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/BiliApi.kt",
+      "sha256": "7373b9fb12c1097ecd61115f2edce8898f139b487ef1f003f441d43cd74ee791"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/CachePolicy.kt",
+      "sha256": "8927f1f6c9482625687553d4ba9a0fec0c2be05e3e40f475ac9c872578c62864"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/DanmakuParser.kt",
+      "sha256": "f32f9e871493acae19b2f40b8e50311af52dd5e7a877ee16cab3280f185bbf4d"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/Models.kt",
+      "sha256": "357f37173b0c95728c01861a8eddf847e3bcca61a97b779c139952edf5ef56fc"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/MusicPreferences.kt",
+      "sha256": "6d4ddc8ddb3e022f1d1f10c0f36efb601933e1a44694e43c0c5e3db26161f21b"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/SocialModels.kt",
+      "sha256": "7d3e2750eeb303d55e0f8b1cdb0699a201ea5f15d23d76423234114d2e242db6"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/Store.kt",
+      "sha256": "07ada8bc4e601063466cc8459fa00fe5269fe0983f55c0ef3df66c4b50ca2c96"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/data/VideoFeedPager.kt",
+      "sha256": "05ef01ccd1fd38bbcad20b6ae3850cbcbb0cb1346bcfe9709bc98d9450038c48"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/download/Downloads.kt",
+      "sha256": "e2056b31c538ee8209d3b4b88b85b9b76415b961ebaffc9a0ff06c845205751b"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/download/RangeDownloader.kt",
+      "sha256": "b279302213ef17279a3f3df43fe24739f0088270cddd7b2682297bb3f45254fc"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/MainActivity.kt",
+      "sha256": "10ff45b762dda4af1d505c2aaa76395dfc7901094123ba92f69a58bb055e1032"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/DanmakuView.kt",
+      "sha256": "06643034b7c5b874a7eccd256f601d0bf2c92bc8caf9941a2777744019f9af7e"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/MusicController.kt",
+      "sha256": "a2730a83f62db8dbcc4afcade4227676d77b990be786d93ac01e26676833b8c0"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/MusicLibrary.kt",
+      "sha256": "a6da3c7a8e94521414042d6ed0db5390788bc94a29ca809f433e7f3113ba31fb"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/MusicQueue.kt",
+      "sha256": "f7e17a72fadb05259b1dc5ff2fe9f5a7a2e15ba5651a197854f7f032ad7660a0"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/MusicSessionPlayer.kt",
+      "sha256": "fb47722d4134549c46535f962a506b10563da58d2833ed83fdd66882c52b678c"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/PlaybackService.kt",
+      "sha256": "2e586c100f406e83dcc2d4f5873e24b81fd1426630a2da2c03c4618d43d17252"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/player/PlayerEngine.kt",
+      "sha256": "95f351da862b6f0fbd06bc5fda75663ac08ad8d3c541f08521309a90707d0f05"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/AccountActions.kt",
+      "sha256": "7d5f80a702f6f75bed86607bde6732dbaecd7439d715591354c4089bbf4f3fe0"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/AccountScreens.kt",
+      "sha256": "a497ef64a1af10141ca9b57f9a7755a87b2d8581a6b1c39f5892fedbadfe36fa"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/AdaptivePlayerLayout.kt",
+      "sha256": "c8aff8effb425d06d6bbc4475a9138ee9e6f50f2c6d0b16a1dd16cda6654d44c"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/AppViewModel.kt",
+      "sha256": "94ac52b7f004c81c251548dfa5c91172cb8ca5dc240c3572597172ccf769506e"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/BiliApp.kt",
+      "sha256": "ebeab389677d2a5c69f87f16341e5da5f0474fb1305378bce4b011340a39b0a2"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/BiliDeskLogo.kt",
+      "sha256": "5bbaa9c05ef90cc88a124536d2a62fea9c92311a058a7818661e714282027a08"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/CacheSettings.kt",
+      "sha256": "3bb1960f07238b11bc3302860cc12a8ce7ab4d73a4536f2c89e9099e05a01d06"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/CoinPanel.kt",
+      "sha256": "0a5cc681173d0457400920b818ea9cc1b5cc13281f01abcd00e0f3151b92844e"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/DownloadOptions.kt",
+      "sha256": "2a94416fd5afe6af6a26f026b5022f0109de40e4ef7acd2c08a0158431b4e321"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/FeedDisplaySettings.kt",
+      "sha256": "3f6988083daf8b5cbc32974e9c1d97e8c4394f5ed8bd3972f1233ef2cf2a8dc9"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/ImmersivePlayback.kt",
+      "sha256": "f8b9be47545a6caee9287cd6bb258abe3f45afb0b6c5be7936446330896f9e3d"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/LayoutPolicy.kt",
+      "sha256": "d5123083bb7c83ab1b3998d67b35d4652a0c18c345ced821c93df392b2894e41"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/MusicAppearance.kt",
+      "sha256": "ed2f36a7247c38ec7ce47a45588b5f9fdade10b1a8a47397d0d1e3e281daf53c"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/MusicLibraryScreen.kt",
+      "sha256": "b307f950af374539b9049eaabd13ecd571c4ce5e847e41bf0b684bcf0c4a298f"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/MusicPlayerScreen.kt",
+      "sha256": "db0e81106a48fa74051f69a7be94368d072e467a6ee4b7de1bf0fbe8e9df7831"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/MusicPlaylists.kt",
+      "sha256": "de2b9482f1ac040d2be9afed19a202e8a6dfda2483be5fee5c374cbaf0f0cab0"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/PlaybackGestures.kt",
+      "sha256": "5bec47599474fa39adabac859690405f9bc04a2fa183c3a17ad84501d95e21b9"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/PlaybackSettings.kt",
+      "sha256": "5099217ec5bc91eede5053e93795bd18d487d25026ba441a4bb1c04d879f1635"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/PlayerScreen.kt",
+      "sha256": "0085fc15d065db6247c0f091252f96bd5c7d7d69af99c6b27973ee6742b7af67"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/PlayerSurface.kt",
+      "sha256": "44c0668fa51d78ef429289ed79f455ac4f8e22b45b73f6adea00eaf9ce255419"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/ShortVideoActions.kt",
+      "sha256": "9d824584ebf12bfb8958c95d1dd3e4e9f4ecc2d260e0cda739609ecbd73a9936"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/ShortVideoScreen.kt",
+      "sha256": "a8b14a2b359080c600870be042532047598d6e51a04dea68e9d526c1278b6a95"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/Theme.kt",
+      "sha256": "93ab2d19bf7df6ec1431c538c4da133611e677eb6a724929c2583ad795cd8022"
+    },
+    {
+      "path": "app/src/main/java/dev/bilidesk/android/ui/VideoComments.kt",
+      "sha256": "3a6d99d9b6db9a788a7e98127b7ea3d800c8f411fe2e4984c45723dc11714f30"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_launcher.xml",
+      "sha256": "3c287c5966822cc264d7b1d1fa4461610be6129ae08a6ef11ea31cabeefdbde1"
+    },
+    {
+      "path": "app/src/main/res/drawable/ic_launcher_foreground.xml",
+      "sha256": "350b40bfbf72b281a9c2db5ce783acec3ed02995212efcc4bc8fdedfedc01022"
+    },
+    {
+      "path": "app/src/main/res/drawable-nodpi/bilidesk_brand.png",
+      "sha256": "ceb5522c7a34d713d3fd590875e57e9fbdde8afa766dd1bfc94e1182f90af232"
+    },
+    {
+      "path": "app/src/main/res/drawable-nodpi/bilidesk_launcher_art.png",
+      "sha256": "22da1cb0ce9bdb8d13cf5c32a8cf2635cf4e08f4f20f03da8a90ea47bce3fc5c"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi/ic_launcher.xml",
+      "sha256": "4d44c0d66964e59cf47f8a8c561d9abf6780ad9fed014ce33a7563f33834c048"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi/ic_launcher_round.xml",
+      "sha256": "4d44c0d66964e59cf47f8a8c561d9abf6780ad9fed014ce33a7563f33834c048"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "sha256": "32715ff646f6b9fef7c321138e4a14556c4a1f98a87b06070b56f41643dad718"
+    },
+    {
+      "path": "app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+      "sha256": "32715ff646f6b9fef7c321138e4a14556c4a1f98a87b06070b56f41643dad718"
+    },
+    {
+      "path": "app/src/main/res/values/colors.xml",
+      "sha256": "4f77ecadd9fc0adbfdd965ecb181c86eeef240c12c97885df88d5572ae60a30e"
+    },
+    {
+      "path": "app/src/main/res/values/styles.xml",
+      "sha256": "0fd21ce2dae20a720d9ea05b02bf93ea8f8e874b004f3ebc207dd88c560d9412"
+    },
+    {
+      "path": "app/src/main/res/xml/data_extraction_rules.xml",
+      "sha256": "eda9dddce1e895de1efd716fe75e244187bf8f91a3bb7444c6ea1731e51c74a8"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/data/AccountSessionTest.kt",
+      "sha256": "332a2b54ab592745e5f78f1331ee9545282c758b06f3ff2512bd5675352691b8"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/data/AccountWriteTest.kt",
+      "sha256": "e195671b8e1e60832e9b851842a4a2d147f451073bdb842297bd5661d1b754fb"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/data/CoreTest.kt",
+      "sha256": "313d5cc3aba6b02928161f13fdbfb9694ffd1e875fe93208f1eec82b9db420c5"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/download/RangeDownloaderTest.kt",
+      "sha256": "bd4cd2613eb21af11d673bbba2d6091e7d27bd2266002802bef36f1396f33d00"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/FeedAndGestureTest.kt",
+      "sha256": "94670854a004a04ac41e2329b87035ed6b5d6643e26d10c346429c6edae28b58"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/InteractionPolicyTest.kt",
+      "sha256": "706071e8bc3263442c463b3cdc015c5bc5c163cf8a9d90ff33e95ea885668404"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/MusicAndRefreshTest.kt",
+      "sha256": "eefecf5d44a2123e83ac4145c126f6eeed53a717bb659c5fc5a6603c5e8504dd"
+    },
+    {
+      "path": "app/src/test/java/dev/bilidesk/android/MusicLibraryAndSocialTest.kt",
+      "sha256": "cf12bf3102fb7bdf20d543151959ae33bb838176e20c8c5c7b05521ce9f24486"
+    },
+    {
+      "path": "build.gradle.kts",
+      "sha256": "1df553bc4ca0f8d14c45baebb13c5a3f4c4d949be18799c1f99e8829581c4cee"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.jar",
+      "sha256": "2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046"
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.properties",
+      "sha256": "0cede9b1a4fa2ab27d7ae4ccd9229dfd545696a70d53775946c059f5c112e08d"
+    },
+    {
+      "path": "gradle.properties",
+      "sha256": "203defb2b03f34d19dd04ae630e4b4d52031a19d992ef14142e0e34d9f0dfbe8"
+    },
+    {
+      "path": "gradlew",
+      "sha256": "a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3"
+    },
+    {
+      "path": "gradlew.bat",
+      "sha256": "57931b17dd228e5c24dac90e815d0bf82477e831a4618dfab4136f5446b42a9f"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "e2fb366311fb75480bb04ed5c32470f4588053bca6dc6e9aff7a1935266038f8"
+    }
+  ]
+}

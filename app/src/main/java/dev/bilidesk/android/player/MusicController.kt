@@ -14,6 +14,7 @@ import java.io.File
 data class MusicStatus(val loadingPlaylist: Boolean = false, val loadedSongs: Int = 0, val error: String? = null, val lyricsLoading: Boolean = false, val lyrics: List<LyricCue> = emptyList(), val lyricsError: String? = null, val lyricVideoKey: String = "")
 
 class MusicController(private val context: Context, private val api: BiliApi, private val engine: PlayerEngine, preferenceName: String = "music_player") {
+    val library = MusicLibrary(context, preferenceName)
     private val prefs = context.getSharedPreferences(preferenceName, Context.MODE_PRIVATE)
     private val positionPrefs = context.getSharedPreferences("${preferenceName}_position", Context.MODE_PRIVATE)
     private val saved = runCatching { JSONObject(prefs.getString("queue", "{}").orEmpty()) }.getOrDefault(JSONObject())
@@ -37,16 +38,25 @@ class MusicController(private val context: Context, private val api: BiliApi, pr
     fun playTrack(track: MusicTrack, position: Long = 0) { snapshot(); savedPosition = position; change(_queue.value.add(track).select(track.key)); engine.openMusic(track, position) }
     fun resume() { val track = _queue.value.current ?: return; if (engine.state.value.music) engine.toggle() else engine.openMusic(track, savedPosition) }
     fun add(video: Video, next: Boolean = false) {
-        val track = MusicTrack(video)
+        addTrack(MusicTrack(video), next)
+    }
+    fun addTrack(track: MusicTrack, next: Boolean = false) {
         if (_queue.value.tracks.isEmpty()) { playTrack(track); return }
         change(_queue.value.add(track, next))
     }
+    fun addTracks(tracks: List<MusicTrack>) { change(tracks.fold(_queue.value) { queue, track -> queue.add(track) }) }
+    fun playTracks(tracks: List<MusicTrack>) {
+        val songs = tracks.filter { it.video.kind == "video" }.distinctBy { it.key }
+        if (songs.isEmpty()) return
+        snapshot(); savedPosition = 0
+        change(MusicQueueState(songs, songs.first().key, _queue.value.mode))
+        engine.openMusic(songs.first())
+    }
+    fun playPlaylist(id: String) { library.state.value.playlists.firstOrNull { it.id == id }?.let { playTracks(it.tracks) } }
     fun playAll(videos: List<Video>) {
         val tracks = videos.filter { it.kind == "video" }.distinctBy { it.key }.map(::MusicTrack)
         if (tracks.isEmpty()) return
-        snapshot(); savedPosition = 0
-        change(MusicQueueState(tracks, tracks.first().key, _queue.value.mode))
-        engine.openMusic(tracks.first())
+        playTracks(tracks)
     }
     fun playFolder(id: Long) {
         val token = ++playlistGeneration

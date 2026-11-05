@@ -83,7 +83,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
         modifier = if (root) Modifier.nestedScroll(topScroll.nestedScrollConnection) else Modifier,
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
+        topBar = { if (route.name != "music") {
             TopAppBar(title = {
                 if (root) Row(verticalAlignment = Alignment.CenterVertically) {
                     BiliDeskLogo(Modifier.size(37.dp), "BiliDesk")
@@ -94,10 +94,10 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
                 actions = { if (root) { IconButton(onClick = { vm.navigate(if (route.name == "music") "music_search" else "search") }) { Icon(Icons.Default.Search, "搜索") }; IconButton(onClick = { vm.navigate("settings") }) { Icon(Icons.Default.Tune, "设置") } } },
                 scrollBehavior = if (root) topScroll else null,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
-        },
+        } },
         bottomBar = { Column(if (root && !rail) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
             if (playback.detail != null) {
-                if (playback.music) { if (route.name != "music" || !musicSplit) MusicMiniPlayer(vm) }
+                if (playback.music) { if (route.name != "music") MusicMiniPlayer(vm) }
                 else MiniPlayer(playback.detail!!.video, playback.playing, vm)
             }
             if (root && !rail) NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
@@ -119,6 +119,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
                 "library" -> LibraryScreen(vm, user)
                 "music" -> MusicHomeScreen(vm, musicSplit)
                 "music_search" -> MusicSearchScreen(vm)
+                "music_library" -> MusicLibraryContent(vm)
                 "folders" -> FolderScreen(vm)
                 "feed" -> FeedRoute(vm, route)
                 "downloads" -> DownloadsScreen(vm)
@@ -339,9 +340,21 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
 }
 
 @Composable fun FolderScreen(vm: AppViewModel) {
-    var folders by remember { mutableStateOf<List<Folder>?>(null) }; var error by remember { mutableStateOf<String?>(null) }; var tick by remember { mutableIntStateOf(0) }
+    var folders by remember { mutableStateOf<List<Folder>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var tick by remember { mutableIntStateOf(0) }
+    var creating by remember { mutableStateOf(false) }
+    if (creating) CreateFolderDialog({ creating = false; tick++ }, { })
     LaunchedEffect(tick) { try { folders = Graph.api.folders(); error = null } catch (e: Exception) { if (e is CancellationException) throw e; error = e.message } }
-    when { error != null -> EmptyState("收藏夹加载失败", error!!, { tick++ }); folders == null -> LoadingState(); folders!!.isEmpty() -> EmptyState("还没有收藏夹", "在哔哩哔哩创建收藏夹后，这里会自动同步"); else -> LazyColumn(contentPadding = PaddingValues(16.dp)) { items(folders!!, key = { it.id }) { f -> MenuRow(Icons.Default.FolderOpen, f.title, "${f.count} 个视频") { vm.navigate("feed", "folder:${f.id}", f.title) } } } }
+    Column(Modifier.fillMaxSize()) {
+        TextButton(onClick = { vm.requireLogin { creating = true } }, Modifier.padding(horizontal = 16.dp)) { Icon(Icons.Default.CreateNewFolder, null); Text("新建收藏夹") }
+        when {
+            error != null -> EmptyState("收藏夹加载失败", error!!, { tick++ })
+            folders == null -> LoadingState()
+            folders!!.isEmpty() -> EmptyState("还没有收藏夹", "点击上方新建收藏夹")
+            else -> LazyColumn(contentPadding = PaddingValues(16.dp)) { items(folders!!, key = { it.id }) { f -> MenuRow(Icons.Default.FolderOpen, f.title, "${f.count} 个视频") { vm.navigate("feed", "folder:${f.id}", f.title) } } }
+        }
+    }
 }
 
 @Composable fun DynamicScreen(vm: AppViewModel) {

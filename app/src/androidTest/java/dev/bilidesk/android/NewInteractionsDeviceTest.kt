@@ -68,6 +68,13 @@ class NewInteractionsDeviceTest {
                         assertTrue(device.wait(Until.gone(By.text("松手确定")), 4000))
                     }
                     select(40f, 4f)
+                    // A retained rate must not create a central overlay intercepting pause/resume.
+                    device.click(x.toInt(), y.toInt())
+                    assertTrue("Locked-speed video did not pause", waitFor { !Graph.player.exo.playWhenReady })
+                    assertFalse("Paused video retains an obstructive locked badge", device.hasObject(By.textContains("已锁定")))
+                    device.click(x.toInt(), y.toInt())
+                    assertTrue("Locked-speed paused video could not resume", waitFor { Graph.player.exo.isPlaying })
+                    scenario.onActivity { assertEquals(4f, Graph.player.exo.playbackParameters.speed, .001f) }
                     select(0f, 1.25f)
                     assertEquals(1.25f, Graph.store.settings.value.playbackSpeed, .001f)
                     assertEquals("BV156xx6wEff", Graph.player.state.value.detail?.video?.bvid)

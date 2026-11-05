@@ -61,8 +61,9 @@ data class MusicQueueState(val tracks: List<MusicTrack> = emptyList(), val curre
 
 data class LyricCue(val startMs: Long, val endMs: Long, val text: String)
 object Lyrics {
+    fun displayText(text: String) = text.replace(Regex("^[\\s♪♫♬♩🎵🎶]+|[\\s♪♫♬♩🎵🎶]+$"), "").trim()
     fun parse(j: JSONObject): List<LyricCue> = j.arr("body").objects().mapNotNull {
-        val start = it.optDouble("from", -1.0); val end = it.optDouble("to", -1.0); val text = it.optString("content").trim()
+        val start = it.optDouble("from", -1.0); val end = it.optDouble("to", -1.0); val text = displayText(it.optString("content"))
         if (!start.isFinite() || !end.isFinite() || start < 0 || end <= start || text.isBlank()) null else LyricCue((start * 1000).toLong(), (end * 1000).toLong(), text.take(4000))
     }.sortedBy { it.startMs }
     fun current(cues: List<LyricCue>, position: Long): Int {

@@ -46,6 +46,8 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
     private var lastCloudAt = 0L
     private var backupIndex = 0
     private var triedAvcFallback = false
+    private var primaryAudioKey = ""
+    private var primaryAudioItem: MediaItem? = null
     private val _state = MutableStateFlow(PlaybackState())
     val state = _state.asStateFlow()
     val music = MusicController(context, api, this, musicPreferenceName)
@@ -75,14 +77,16 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                     override fun onPlayerError(error: PlaybackException) {
                         val s = _state.value
                         val codec = s.plan?.video?.codec.orEmpty()
-                        if (!s.local && codec.isNotBlank() && !codec.startsWith("avc", ignoreCase = true) && !triedAvcFallback) {
+                        val audioOnly = s.music && !s.musicVisual && s.plan?.audio != null
+                        if (!audioOnly && !s.local && codec.isNotBlank() && !codec.startsWith("avc", ignoreCase = true) && !triedAvcFallback) {
                             triedAvcFallback = true
                             fallbackToAvc(exo.currentPosition.coerceAtLeast(0))
                             return
                         }
-                        val backups = s.plan?.video?.backups.orEmpty()
+                        val backups = (if (audioOnly) s.plan?.audio else s.plan?.video)?.backups.orEmpty()
                         if (!s.local && backupIndex < backups.size && error.errorCode in 2000..2999) {
-                            val plan = s.plan!!.copy(video = s.plan.video.copy(url = backups[backupIndex++]))
+                            val url = backups[backupIndex++]
+                            val plan = if (audioOnly) s.plan!!.copy(audio = s.plan.audio!!.copy(url = url)) else s.plan!!.copy(video = s.plan.video.copy(url = url))
                             attach(plan, exo.currentPosition)
                         } else _state.value = s.copy(loading = false, playing = false, error = "播放失败（${error.errorCode}），请重试或选择其他画质")
                     }
@@ -121,7 +125,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         if (asMusic && !existing.music && existing.detail?.video?.key == video.key && existing.error == null && exo.mediaItemCount > 0 && (musicCid == 0L || currentEpisode()?.cid == musicCid)) {
             _state.value = existing.copy(music = true, musicVisual = false)
             exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
-            exo.setPlaybackSpeed(1f); exo.play()
+            existing.plan?.let { attach(selectMusicAudio(it), exo.currentPosition) } ?: run { exo.setPlaybackSpeed(1f); exo.play() }
             currentEpisode()?.let { music.prepared(existing.detail, it.cid) }
             startService(); return
         }
@@ -177,8 +181,9 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         if (cache != null) {
             playLocal(cache, detail, index, position)
         } else {
-            var plan = api.play(detail.video, episode, quality, forceAvc = _state.value.music)
-            if (store.settings.value.cdnMode == 0) plan = plan.copy(video = selectCdn(plan.video), audio = plan.audio?.let { selectCdn(it) })
+            var plan = api.play(detail.video, episode, quality, forceAvc = _state.value.musicVisual)
+            if (_state.value.music) plan = selectMusicAudio(plan)
+            else if (store.settings.value.cdnMode == 0) plan = plan.copy(video = selectCdn(plan.video), audio = plan.audio?.let { selectCdn(it) })
             if (token != generation) return
             backupIndex = 0
             attach(plan, position)
@@ -226,19 +231,33 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         val selected = speeds.filter { it.second > 0 }.maxByOrNull { it.second }?.first ?: stream.url
         stream.copy(url = selected, backups = all.filter { it != selected })
     }
-    private fun attach(plan: PlayPlan, position: Long) {
+    private fun selectMusicAudio(plan: PlayPlan): PlayPlan = plan.copy(audio = MusicAudioPolicy.select(plan.audioOptions.ifEmpty { listOfNotNull(plan.audio) }, store.settings.value.music.audioQuality) ?: plan.audio)
+    private fun attach(plan: PlayPlan, position: Long, autoplay: Boolean = true) {
         val detail = _state.value.detail ?: return
+        val audioOnly = _state.value.music && !_state.value.musicVisual
+        if (audioOnly && plan.audio == null) {
+            exo.stop(); exo.clearMediaItems()
+            _state.value = _state.value.copy(plan = plan, loading = false, playing = false, local = false, error = "此内容没有独立音轨，可切换原视频播放；将消耗视频流量")
+            return
+        }
         val referer = detail.video.url
         val http = DefaultHttpDataSource.Factory().setUserAgent(BILI_UA).setConnectTimeoutMs(15000).setReadTimeoutMs(20000).setDefaultRequestProperties(mapOf("Referer" to referer))
         val sourceFactory = DefaultDataSource.Factory(context, http)
         val metadata = MediaMetadata.Builder().setTitle(detail.video.title).setArtist(detail.video.author).setArtworkUri(detail.video.cover.takeIf { it.isNotBlank() }?.let(Uri::parse)).build()
         fun item(stream: Stream) = MediaItem.Builder().setUri(stream.url).setMediaId(detail.video.key).setMimeType(stream.mime).setMediaMetadata(metadata).build()
-        val video = if (plan.video.mime.contains("mpegURL")) HlsMediaSource.Factory(sourceFactory).createMediaSource(item(plan.video))
+        fun videoSource() = if (plan.video.mime.contains("mpegURL")) HlsMediaSource.Factory(sourceFactory).createMediaSource(item(plan.video))
                     else ProgressiveMediaSource.Factory(sourceFactory, DefaultExtractorsFactory()).createMediaSource(item(plan.video))
-        val source = plan.audio?.let { MergingMediaSource(video, ProgressiveMediaSource.Factory(sourceFactory).createMediaSource(item(it))) } ?: video
+        val audio = plan.audio?.let { stream ->
+            val key = "${detail.video.key}:${currentEpisode()?.cid}:${stream.url}"
+            if (primaryAudioKey != key || primaryAudioItem == null) { primaryAudioKey = key; primaryAudioItem = item(stream) }
+            ProgressiveMediaSource.Factory(sourceFactory).createMediaSource(primaryAudioItem!!)
+        }
+        // Do not even instantiate a video source while listening. Audio remains the primary
+        // timeline when the user explicitly opens the picture, preserving media-session identity.
+        val source = when { audioOnly -> audio!!; audio != null -> MergingMediaSource(audio, videoSource()); else -> videoSource() }
         exo.setMediaSource(source, position)
         exo.setPlaybackSpeed(if (_state.value.music) 1f else store.settings.value.playbackSpeed)
-        exo.prepare(); exo.playWhenReady = true
+        exo.prepare(); exo.playWhenReady = autoplay
         _state.value = _state.value.copy(plan = plan, error = null, local = false, duration = plan.durationMs, notice = if (plan.preview) "当前账号正在播放试看内容" else null)
         startService()
     }
@@ -338,12 +357,22 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                 catch (e: Exception) { if (e is CancellationException) throw e; _state.value = _state.value.copy(local = state.local, cacheType = state.cacheType, error = null, loading = false, musicVisual = false, notice = "原视频画面暂时无法读取，继续播放音频") }
             }
         }
+        else if (!state.local) state.plan?.let { attach(it, exo.currentPosition.coerceAtLeast(0), autoplay = exo.playWhenReady || state.error != null) }
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !show).build()
+    }
+    fun musicQuality(quality: MusicAudioQuality) {
+        store.update(store.settings.value.copy(music = store.settings.value.music.copy(audioQuality = quality)))
+        val state = _state.value
+        if (!state.music || state.local) return
+        val plan = state.plan ?: return
+        val selected = selectMusicAudio(plan)
+        if (selected.audio?.url != plan.audio?.url) { backupIndex = 0; attach(selected, exo.currentPosition.coerceAtLeast(0), exo.playWhenReady) }
     }
     fun resumeVideoTrack() { if (_state.value.detail != null) exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, _state.value.music && !_state.value.musicVisual).build() }
     fun pauseForBackground() {
         if (_state.value.detail == null) return
-        if (!_state.value.music && !store.settings.value.background) { exo.pause(); saveHistory(); reportHistory() }
+        if (_state.value.music) { if (_state.value.musicVisual) setMusicVideo(false) }
+        else if (!store.settings.value.background) { exo.pause(); saveHistory(); reportHistory() }
         else exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
     }
     fun stop() { music.snapshot(); saveHistory(); reportHistory(); prepareJob?.cancel(); dmJob?.cancel(); sponsorJob?.cancel(); generation++; exo.stop(); exo.clearMediaItems(); store.pinCache(null); _state.value = PlaybackState() }

@@ -30,6 +30,7 @@ fun shareVideo(context: Context, video: Video) {
     var folderBusy by mutableStateOf(false); private set
     var folderError by mutableStateOf<String?>(null); private set
     val favorited get() = folders.any { it.selected }
+    fun created(folder: Folder) { folders = (folders + folder).distinctBy { it.id } }
     fun load() {
         if (!likeBusy) {
             likeBusy = true
@@ -83,8 +84,11 @@ fun shareVideo(context: Context, video: Video) {
 }
 
 @Composable fun ShortFavoritePanel(actions: ShortEngagement) {
+    var creating by remember { mutableStateOf(false) }
+    if (creating) CreateFolderDialog(onDismiss = { creating = false; actions.loadFolders() }, onCreated = actions::created)
+    TextButton(onClick = { creating = true }, enabled = !actions.folderBusy) { Text("新建收藏夹") }
     if (actions.folderBusy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 12.dp))
-    if (actions.folders.isEmpty() && !actions.folderBusy && actions.folderError == null) Text("还没有收藏夹，请先在官方App或网页创建。", fontSize = 13.sp)
+    if (actions.folders.isEmpty() && !actions.folderBusy && actions.folderError == null) Text("还没有收藏夹，可以在这里新建。", fontSize = 13.sp)
     actions.folders.forEach { folder ->
         Row(Modifier.fillMaxWidth().clickable(enabled = !actions.folderBusy) { actions.toggleFolder(folder) }.semantics { contentDescription = "收藏夹 ${folder.title}" }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(folder.selected, onCheckedChange = null)

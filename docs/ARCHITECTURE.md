@@ -56,6 +56,8 @@ validation/                 # 脱敏验证摘要和源码校验清单
 
 唱片、歌词或原视频是同一播放会话的不同展示方式。切页和切换展示不应重新建立第二个播放器，也不应重置当前曲目的进度。字幕只能来自可读取的视频字幕；没有字幕时展示原视频，不生成歌词。
 
+0.1.8将纯音乐切换为真正的单音轨媒体源，跳过视频CDN测速；原视频按显式用户操作附加，保留主音轨媒体项与位置，切换时可能缓冲。`MusicAudioPolicy`按实际可用音轨选择码率，`MusicPreferences`保存外观与音质。`MusicLibrary`在独立偏好文件中串行确认保存多个本机歌单，编辑歌单不替换`MusicQueueState`；歌曲身份包含视频与cid。`MusicPlaylists`负责合集／多P选择和歌单编辑，`MusicAppearance`负责播放器DIY。
+
 ### 离线下载与存储策略
 
 `DownloadOptions` 选择账号实际可用的画质与视频/音频类型，`Downloads` 维护任务及前台下载服务。`RangeDownloader` 按有界 Range 下载，保存部分文件和 `.resume` 元数据；`Downloads` 使用系统 `MediaExtractor` / `MediaMuxer` 处理轨道，完成后写入 `Store` 的缓存索引。
@@ -67,6 +69,8 @@ validation/                 # 脱敏验证摘要和源码校验清单
 `AccountScreens` 提供官方扫码或网页登录；`SecureCookies` 限定会话 Cookie 的域名和本机加密存储。`AccountWriteClient` 统一处理账号写请求与错误说明。播放历史也会自动尝试同步，具体网络行为见 [PRIVACY](../PRIVACY.md)。不要把登录密钥、账号数据或完整响应写入诊断日志。
 
 0.1.7增加 `AccountSession` 管理账号验证状态，`SecureCookies` 加密保存并绑定上次已验证的资料。`MainActivity` 仅在前台收集 `AccountNetworkMonitor` 的事件，重连后触发有界的只读校验；网络异常保留账号，导航明确拒绝才要求重新登录。退出或切换会话通过代次与会话指纹隔离迟到结果，不能由旧请求恢复已退出的账号。
+
+0.1.8的`SocialModels`解析关系、评论／回复和合集数据；`AccountActions`提供有读取／错误／提交状态的关注按钮与收藏夹创建；`VideoComments`在两种视频布局共用，不持有或替换播放器。全局最早评论从服务器末页开始，点赞以rpid跟踪。新增账号写入仍复用`AccountWriteClient`，禁止自动重放和透明重定向。
 
 ## 维护原则
 

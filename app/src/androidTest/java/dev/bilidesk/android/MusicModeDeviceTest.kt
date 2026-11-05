@@ -92,7 +92,9 @@ class MusicModeDeviceTest {
                     scenario.onActivity { assertSame("Video fallback replaced the playing media", media, Graph.player.exo.currentMediaItem) }
                     device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "music-original-video.png"))
                     scenario.onActivity { vm!!.root("music") }
-                    assertNotNull(device.wait(Until.findObject(By.text("模拟收藏夹")), 15000))
+                    if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
+                    assertTrue("Music root did not finish replacing the full player", device.wait(Until.hasObject(By.text("发现")), 10000))
+                    if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
                     if (instrumentation.targetContext.resources.configuration.smallestScreenWidthDp >= 600) {
                         device.setOrientationLeft()
                         assertTrue(waitFor { device.displayWidth > device.displayHeight })
@@ -100,6 +102,8 @@ class MusicModeDeviceTest {
                         val folder = device.wait(Until.findObject(By.text("模拟收藏夹")), 15000)!!
                         assertTrue("Tablet cover must be to the right of the song library", cover.visibleBounds.left > folder.visibleBounds.right)
                     }
+                    else device.wait(Until.findObject(By.desc("我的歌单")), 10000)!!.click()
+                    assertNotNull(device.wait(Until.findObject(By.text("模拟收藏夹")), 15000))
                     assertTrue(waitFor { Graph.player.exo.isPlaying })
                     device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "music-vinyl-layout.png"))
                     assertFalse("Dynamics navigation was not removed", device.hasObject(By.text("动态")))

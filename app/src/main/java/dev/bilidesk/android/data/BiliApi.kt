@@ -123,7 +123,8 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         }
         val id = if (video.bvid.isNotBlank()) mapOf("bvid" to video.bvid) else mapOf("aid" to "${video.aid}")
         val j = json("/x/web-interface/view", id)
-        return VideoDetail(Video.api(j), j.optString("desc"), j.arr("pages").objects().map { Episode(it.optLong("cid"), it.optString("part"), it.optLong("duration"), j.optString("bvid"), j.optLong("aid")) }, j.obj("stat").optLong("like"), j.obj("stat").optLong("coin"), j.obj("stat").optLong("favorite"))
+        val summary = Video.api(j)
+        return VideoDetail(summary, j.optString("desc"), j.arr("pages").objects().map { Episode(it.optLong("cid"), it.optString("part"), it.optLong("duration"), j.optString("bvid"), j.optLong("aid")) }, j.obj("stat").optLong("like"), j.obj("stat").optLong("coin"), j.obj("stat").optLong("favorite"), VideoCollections.parse(j, summary))
     }
     suspend fun related(bvid: String) = json("/x/web-interface/archive/related", mapOf("bvid" to bvid)).arr("items").objects().map(Video::api)
     private fun streams(array: JSONArray) = array.objects().mapNotNull { j ->
@@ -147,7 +148,7 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
             val selected = Quality.select(candidates, requested, !forceAvc && store.settings.value.preferHevc)
             val sounds = streams(dash.arr("audio"))
             val audio = sounds.filter { it.codec.startsWith("mp4a") }.ifEmpty { sounds }.maxByOrNull { it.bandwidth }
-            return PlayPlan(selected, audio, candidates.map { it.quality }.distinct().sortedDescending(), j.optLong("timelength"), j.optInt("is_preview") == 1)
+            return PlayPlan(selected, audio, candidates.map { it.quality }.distinct().sortedDescending(), j.optLong("timelength"), j.optInt("is_preview") == 1, sounds)
         }
         val durl = j.arr("durl").objects()
         if (durl.size > 1) throw ApiException(-3, "该视频仅返回分段旧格式，请在官方网页播放")
@@ -183,7 +184,47 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     }
     suspend fun comments(aid: Long, page: Int = 1): List<Comment> {
         val j = json("/x/v2/reply", mapOf("type" to "1", "oid" to "$aid", "pn" to "$page", "sort" to "2"))
-        return j.arr("replies").objects().map { Comment(it.obj("member").optString("uname"), it.obj("member").optString("avatar").https(), it.obj("content").optString("message"), it.optLong("like")) }
+        return j.arr("replies").objects().map { SocialModels.comment(it) }
+    }
+    suspend fun commentPage(aid: Long, cursor: Int = 0, order: CommentOrder = CommentOrder.HOT, root: Long = 0): CommentPage {
+        require(aid > 0 && root >= 0) { "评论信息不完整" }
+        val common = mapOf("type" to "1", "oid" to "$aid", "ps" to "20")
+        if (root > 0) {
+            val page = cursor.coerceAtLeast(1)
+            val j = json("/x/v2/reply/reply", common + mapOf("root" to "$root", "pn" to "$page"))
+            return SocialModels.page(j, page, CommentOrder.NEWEST, replies = true)
+        }
+        if (order == CommentOrder.HOT) {
+            val j = json("/x/v2/reply/main", common + mapOf("mode" to "3", "next" to "$cursor"))
+            return SocialModels.page(j, cursor, order)
+        }
+        val params = common + mapOf("sort" to "0", "nohot" to "1")
+        var page = cursor.coerceAtLeast(1)
+        var j = json("/x/v2/reply", params + mapOf("pn" to "$page"))
+        if (order == CommentOrder.OLDEST && cursor == 0) {
+            val count = j.obj("page").optLong("count", -1)
+            if (count < 0 && j.arr("replies").length() > 0) throw ApiException(-3, "平台暂未返回总页数，无法定位最早评论，请改用最新排序")
+            page = ((count.coerceAtLeast(0) + 19) / 20).coerceAtLeast(1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            if (page > 1) j = json("/x/v2/reply", params + mapOf("pn" to "$page"))
+        }
+        return SocialModels.page(j, page, order)
+    }
+    suspend fun likeComment(aid: Long, comment: Long, like: Boolean) {
+        require(aid > 0 && comment > 0) { "评论信息不完整，请刷新评论后重试" }
+        post("/x/v2/reply/action", mapOf("type" to "1", "oid" to "$aid", "rpid" to "$comment", "action" to if (like) "1" else "0"), referer = "https://www.bilibili.com/video/av$aid")
+    }
+    suspend fun following(mid: Long): Boolean {
+        require(mid > 0)
+        val j = json("/x/relation", mapOf("fid" to "$mid"), referer = "https://space.bilibili.com/$mid")
+        if (!j.has("attribute")) throw ApiException(-3, "关注状态暂时无法确认，请重试")
+        return SocialModels.following(j.optInt("attribute"))
+    }
+    suspend fun createFolder(title: String, privateFolder: Boolean = true): Folder {
+        val valid = SocialModels.folderTitle(title)
+        val j = post("/x/v3/fav/folder/add", mapOf("title" to valid, "privacy" to if (privateFolder) "1" else "0", "intro" to "", "cover" to ""))
+        val id = j.optLong("id")
+        if (id <= 0) throw WriteOutcomeUnknown()
+        return Folder(id, j.optString("title").ifBlank { valid }, j.optInt("media_count"))
     }
     suspend fun folders(aid: Long = 0): List<Folder> {
         val p = mutableMapOf("up_mid" to cookies.value("DedeUserID"))
@@ -288,7 +329,7 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     }
     suspend fun favorite(aid: Long, folder: Long, add: Boolean) { post("/x/v3/fav/resource/deal", mapOf("rid" to "$aid", "type" to "2", (if (add) "add_media_ids" else "del_media_ids") to "$folder")) }
     suspend fun watchLater(aid: Long, add: Boolean) { post(if (add) "/x/v2/history/toview/add" else "/x/v2/history/toview/del", mapOf("aid" to "$aid")) }
-    suspend fun follow(mid: Long, add: Boolean) { post("/x/relation/modify", mapOf("fid" to "$mid", "act" to if (add) "1" else "2", "re_src" to "11")) }
+    suspend fun follow(mid: Long, add: Boolean) { require(mid > 0); post("/x/relation/modify", mapOf("fid" to "$mid", "act" to if (add) "1" else "2", "re_src" to "11"), referer = "https://space.bilibili.com/$mid") }
     suspend fun report(aid: Long, cid: Long, progress: Long) { if (cookies.value("SESSDATA").isNotBlank()) post("/x/v2/history/report", mapOf("aid" to "$aid", "cid" to "$cid", "progress" to "$progress", "platform" to "android")) }
     suspend fun sendDanmaku(cid: Long, text: String, positionMs: Long) { post("/x/v2/dm/post", mapOf("type" to "1", "oid" to "$cid", "msg" to text, "progress" to "$positionMs", "color" to "16777215", "fontsize" to "25", "pool" to "0", "mode" to "1", "rnd" to "${System.currentTimeMillis() * 1000}")) }
     suspend fun sendComment(aid: Long, text: String) { post("/x/v2/reply/add", mapOf("oid" to "$aid", "type" to "1", "message" to text, "plat" to "1")) }

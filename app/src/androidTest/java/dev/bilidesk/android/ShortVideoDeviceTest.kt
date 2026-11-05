@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import android.media.AudioManager
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.ui.PlayerView
+import androidx.media3.common.Player
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -47,6 +48,7 @@ class ShortVideoDeviceTest {
         fixture = if (InstrumentationRegistry.getArguments().getString("playback_fixture") == "true") InteractionFixture(instrumentation) else null
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             var vm: AppViewModel? = null; var native: PlayerView? = null
+            var diagnostics: Player.Listener? = null
             fun visiblePlayer(minimum: Float = .8f): PlayerView? {
                 val view = PlayerViewHost.currentView ?: return null
                 val rect = android.graphics.Rect()
@@ -63,6 +65,13 @@ class ShortVideoDeviceTest {
                 scenario.onActivity {
                     PlayerViewHost.touchObserver = { touchEvents.add(it) }
                     Graph.player.stop()
+                    val engine = Graph.player
+                    diagnostics = object: Player.Listener {
+                        override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
+                            if (!value) touchEvents.add("PAUSE reason=$reason state=${engine.exo.playbackState} items=${engine.exo.mediaItemCount} plan=${engine.state.value.plan != null} caller=" + Thread.currentThread().stackTrace.take(32).joinToString(" <- ") { it.className.substringAfterLast('.') + "." + it.methodName })
+                        }
+                        override fun onPlaybackStateChanged(value: Int) { touchEvents.add("STATE=$value ready=${engine.exo.playWhenReady} items=${engine.exo.mediaItemCount} plan=${engine.state.value.plan != null}") }
+                    }.also { engine.exo.addListener(it) }
                     Graph.store.update(original.copy(playbackSpeed = 1.25f, holdSpeed = 3f, holdSpeedEnabled = true, shortsAutoNext = false))
                     vm = ViewModelProvider(it)[AppViewModel::class.java]
                     vm!!.openShorts(Video(bvid = "BV156xx6wEff"), listOf(Video(bvid = "BV17x411w7KC")))
@@ -77,7 +86,7 @@ class ShortVideoDeviceTest {
                 var before = 0L
                 scenario.onActivity { before = Graph.player.exo.currentPosition }
                 device.wait(Until.findObject(By.desc("打开评论")), 10000)!!.click()
-                assertNotNull(device.wait(Until.findObject(By.text("视频继续播放中")), 10000))
+                assertNotNull(device.wait(Until.findObject(By.text("浏览评论时视频应持续播放")), 10000))
                 assertTrue("Comments covered the whole video instead of retaining a visible player", waitFor { native!!.height < device.displayHeight * .6 })
                 assertTrue("Opening comments interrupted playback", waitFor { Graph.player.exo.isPlaying && Graph.player.exo.currentPosition > before + 1200 })
                 scenario.onActivity { assertSame("Comments replaced the playback surface", sameSurface, visiblePlayer(.1f)); assertTrue((Graph.player.exo.audioDecoderCounters?.renderedOutputBufferCount ?: 0) > 0) }
@@ -172,7 +181,7 @@ class ShortVideoDeviceTest {
                     File(context.getExternalFilesDir(null), "short-touch-trace.txt").writeText(touchEvents.joinToString("\n") + "\nindex=${vm?.shortSession?.index} bvid=${Graph.player.state.value.detail?.video?.bvid} playing=${Graph.player.exo.isPlaying} loading=${Graph.player.state.value.loading} error=${Graph.player.state.value.error} position=${Graph.player.exo.currentPosition} speed=${Graph.player.exo.playbackParameters.speed} decoded=${Graph.player.exo.videoDecoderCounters?.renderedOutputBufferCount} view=${playerView?.width}x${playerView?.height} visible=${playerView?.getGlobalVisibleRect(rect)} rect=$rect")
                 }
                 device.takeScreenshot(File(context.getExternalFilesDir(null), "short-failure.png")); device.dumpWindowHierarchy(File(context.getExternalFilesDir(null), "short-failure.xml")); throw failure
-            } finally { audio.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0); scenario.onActivity { PlayerViewHost.touchObserver = null; Graph.player.stop(); Graph.store.update(original) }; device.unfreezeRotation() }
+            } finally { audio.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0); scenario.onActivity { diagnostics?.let { Graph.player.exo.removeListener(it) }; PlayerViewHost.touchObserver = null; Graph.player.stop(); Graph.store.update(original) }; device.unfreezeRotation() }
         }
     }
 }

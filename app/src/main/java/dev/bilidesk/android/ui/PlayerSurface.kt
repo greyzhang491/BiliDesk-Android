@@ -145,6 +145,7 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
             var adjusting: VerticalAdjustment? = null
             var shortEdgeAdjustment = false
             var brightnessStart = .5f; var volumeStart = .5f
+            var volumeMax = 1
             val detector = GestureDetector(ctx, object: GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent) = true
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
@@ -179,8 +180,6 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
                     shortEdgeAdjustment = shortMode && verticalAllowed && (downX < width * .2f || downX > width * .8f)
                     // A reused page must not keep the previous held/edge gesture's interception.
                     parent?.requestDisallowInterceptTouchEvent(shortEdgeAdjustment)
-                    brightnessStart = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 } ?: runCatching { android.provider.Settings.System.getInt(ctx.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(.5f)
-                    volumeStart = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
                 }
                 detector.onTouchEvent(event)
                 val dx = event.x - downX; val dy = event.y - downY
@@ -189,7 +188,18 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
                     return@setOnTouchListener true
                 }
                 if (event.actionMasked == MotionEvent.ACTION_MOVE && verticalAllowed && (!shortMode || shortEdgeAdjustment) && (adjusting != null || abs(dy) > 24 * density && abs(dy) > abs(dx) * 1.3f)) {
-                    if (adjusting == null) { adjusting = VerticalGesturePolicy.target(downX, width.toFloat()); parent?.requestDisallowInterceptTouchEvent(true); hideController() }
+                    if (adjusting == null) {
+                        adjusting = VerticalGesturePolicy.target(downX, width.toFloat())
+                        // Keep DOWN fast so taps, paging and held gestures are not delayed by
+                        // system-service calls. Read only the value the confirmed edge gesture needs.
+                        if (adjusting == VerticalAdjustment.BRIGHTNESS) {
+                            brightnessStart = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 } ?: runCatching { android.provider.Settings.System.getInt(ctx.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(.5f)
+                        } else {
+                            volumeMax = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            volumeStart = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / volumeMax
+                        }
+                        parent?.requestDisallowInterceptTouchEvent(true); hideController()
+                    }
                     when (adjusting) {
                         VerticalAdjustment.BRIGHTNESS -> {
                             val value = VerticalGesturePolicy.value(brightnessStart, dy, height.toFloat()).coerceAtLeast(.03f)
@@ -197,7 +207,7 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
                             adjustment = "亮度 ${(value * 100).roundToInt()}%"
                         }
                         VerticalAdjustment.VOLUME -> {
-                            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            val max = volumeMax
                             val value = (VerticalGesturePolicy.value(volumeStart, dy, height.toFloat()) * max).roundToInt()
                             runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0) }
                             adjustment = "音量 ${(value * 100f / max).roundToInt()}%"
@@ -249,10 +259,11 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
             }
         }
         val badge = seekPreview?.let { "${timeLabel(it / 1000)} / ${timeLabel(state.duration / 1000)} · 松手跳转" }
-            ?: adjustment ?: if (heldRate != null || lockedRate != null && controlsVisible) {
-                if (lockedRate != null) "${speedLabel(lockedRate!!)} 已锁定"
-                else speedLabel(heldRate!!)
-            } else null
-        if (!choosingLock) badge?.let { Surface(Modifier.align(Alignment.Center).padding(20.dp), shape = MaterialTheme.shapes.medium, color = Color.Black.copy(alpha = .75f)) { Text(it, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), color = Color.White, fontSize = 13.sp) } }
+            ?: adjustment ?: heldRate?.let(::speedLabel)
+        // Text/background does not intercept the native play/pause control underneath.
+        if (!choosingLock) badge?.let { Text(it, Modifier.align(Alignment.Center).padding(20.dp).background(Color.Black.copy(alpha = .75f), MaterialTheme.shapes.medium).padding(horizontal = 14.dp, vertical = 10.dp), color = Color.White, fontSize = 13.sp) }
+        if (lockedRate != null && state.playing && controlsVisible && !choosingLock && !pip) {
+            Text("${speedLabel(lockedRate!!)} · 已锁定", Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 92.dp).background(Color.Black.copy(alpha = .6f), MaterialTheme.shapes.small).padding(horizontal = 10.dp, vertical = 5.dp), color = Color.White.copy(alpha = .8f), fontSize = 10.sp)
+        }
     }
 }

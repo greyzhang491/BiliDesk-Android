@@ -43,15 +43,17 @@ data class Video(
     }
 }
 data class Episode(val cid: Long, val title: String, val duration: Long, val bvid: String = "", val aid: Long = 0, val epid: Long = 0)
-data class VideoDetail(val video: Video, val description: String, val pages: List<Episode>, val likes: Long = 0, val coins: Long = 0, val favorites: Long = 0)
+data class VideoDetail(val video: Video, val description: String, val pages: List<Episode>, val likes: Long = 0, val coins: Long = 0, val favorites: Long = 0, val collection: VideoCollection? = null)
 data class FeedPage(val videos: List<Video>, val next: String = "", val more: Boolean = true)
 data class User(val mid: Long, val name: String, val avatar: String, val level: Int, val vip: Boolean)
 data class Folder(val id: Long, val title: String, val count: Int, val selected: Boolean = false)
-data class Comment(val name: String, val avatar: String, val text: String, val likes: Long)
+data class Comment(val name: String, val avatar: String, val text: String, val likes: Long, val id: Long = 0, val mid: Long = 0, val createdAt: Long = 0, val liked: Boolean = false, val replyCount: Int = 0, val rootId: Long = 0, val parentId: Long = 0, val replies: List<Comment> = emptyList(), val pinned: Boolean = false) {
+    val key get() = if (id > 0) "$id" else "$name:$createdAt:$text"
+}
 data class DynamicItem(val id: String, val name: String, val avatar: String, val text: String, val published: String, val video: Video?, val pictures: List<String>)
 data class MessageItem(val title: String, val text: String, val url: String = "", val talkerId: Long = 0)
 data class Stream(val url: String, val backups: List<String>, val quality: Int, val codec: String, val bandwidth: Long, val mime: String)
-data class PlayPlan(val video: Stream, val audio: Stream? = null, val qualities: List<Int> = emptyList(), val durationMs: Long = 0, val preview: Boolean = false)
+data class PlayPlan(val video: Stream, val audio: Stream? = null, val qualities: List<Int> = emptyList(), val durationMs: Long = 0, val preview: Boolean = false, val audioOptions: List<Stream> = emptyList())
 data class Danmaku(val timeMs: Long, val text: String, val mode: Int = 1, val color: Int = 0xffffff, val weight: Int = 0)
 data class Segment(val cid: Long, val startMs: Long, val endMs: Long, val category: String, val action: String, val votes: Int)
 data class HistoryEntry(val video: Video, val cid: Long, val positionMs: Long, val at: Long)

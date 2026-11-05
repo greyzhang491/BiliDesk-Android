@@ -34,7 +34,8 @@ data class Settings(
     val cdnMode: Int = 0, val playbackSpeed: Float = 1f,
     val holdSpeedEnabled: Boolean = true, val holdSpeed: Float = 2f,
     val autoCacheMaxMb: Int = 256, val autoCacheDays: Int = 7, val autoCacheWifiOnly: Boolean = true,
-    val feedDensity: Int = 1, val feedColumns: Int = 0, val shortsAutoNext: Boolean = false
+    val feedDensity: Int = 1, val feedColumns: Int = 0, val shortsAutoNext: Boolean = false,
+    val music: MusicPreferences = MusicPreferences()
 )
 
 class Store(context: Context) {
@@ -66,7 +67,8 @@ class Store(context: Context) {
         cdnMode = prefs.getInt("cdnMode", 0), playbackSpeed = prefs.getFloat("playbackSpeed", 1f),
         holdSpeedEnabled = prefs.getBoolean("holdSpeedEnabled", true), holdSpeed = prefs.getFloat("holdSpeed", 2f),
         autoCacheMaxMb = prefs.getInt("autoCacheMaxMb", 256).coerceIn(128, 1024), autoCacheDays = prefs.getInt("autoCacheDays", 7).coerceIn(1, 30), autoCacheWifiOnly = prefs.getBoolean("autoCacheWifiOnly", true),
-        feedDensity = prefs.getInt("feedDensity", 1).coerceIn(0, 2), feedColumns = prefs.getInt("feedColumns", 0).coerceIn(0, 8), shortsAutoNext = prefs.getBoolean("shortsAutoNext", false)
+        feedDensity = prefs.getInt("feedDensity", 1).coerceIn(0, 2), feedColumns = prefs.getInt("feedColumns", 0).coerceIn(0, 8), shortsAutoNext = prefs.getBoolean("shortsAutoNext", false),
+        music = runCatching { MusicPreferences.from(JSONObject(prefs.getString("musicPrefs", "{}").orEmpty())) }.getOrDefault(MusicPreferences())
     )
     fun change(transform: (Settings) -> Settings): Unit = synchronized(settingsLock) { update(transform(_settings.value)) }
     fun update(s: Settings): Unit = synchronized(settingsLock) {
@@ -81,7 +83,7 @@ class Store(context: Context) {
             .putInt("cdnMode", s.cdnMode).putFloat("playbackSpeed", s.playbackSpeed)
             .putBoolean("holdSpeedEnabled", s.holdSpeedEnabled).putFloat("holdSpeed", s.holdSpeed)
             .putInt("autoCacheMaxMb", s.autoCacheMaxMb).putInt("autoCacheDays", s.autoCacheDays).putBoolean("autoCacheWifiOnly", s.autoCacheWifiOnly)
-            .putInt("feedDensity", s.feedDensity).putInt("feedColumns", s.feedColumns).putBoolean("shortsAutoNext", s.shortsAutoNext).apply()
+            .putInt("feedDensity", s.feedDensity).putInt("feedColumns", s.feedColumns).putBoolean("shortsAutoNext", s.shortsAutoNext).putString("musicPrefs", s.music.json().toString()).apply()
         if (previous.autoCacheMaxMb != s.autoCacheMaxMb || previous.autoCacheDays != s.autoCacheDays) maintenance.launch { pruneAutomaticCache() }
     }
     fun addSearch(text: String) {

@@ -1,5 +1,7 @@
 # 0.1.6 设备交互回归
 
+本页保留历次方法。当前版本的实际结果见[0.1.8验证记录](../docs/VALIDATION-0.1.8.md)。
+
 JVM测试与Lint不需要测试账号。真实B站播放测试默认使用测试参数指定的BV或测试源码中的公开视频；若平台返回412，应停止重复请求，不能把该运行计为通过。
 
 交互可以通过显式离线夹具参数独立验证。`InteractionFixture`只在`androidTest`中，主APK不包含模拟响应、独立样片、测试代理或DNS设置。夹具使用真实Media3解码、原生播放器及系统触摸输入，API返回值在测试客户端中注入；它验证播放器交互，不能证明B站网络接口成功。最终回归在模拟器断网环境进行，避免启动页面的后台读取接触平台。
@@ -41,3 +43,13 @@ adb shell am instrument -w -r -e playback_fixture true -e class dev.bilidesk.and
 `AccountSessionTest` 是纯JVM状态回归；`SessionRecoveryDeviceTest` 使用专用偏好文件和假账号检查离线恢复、加密资料、读取失败保留、退出隔离。`AccountReconnectUiDeviceTest` 会实际切换测试设备的 Wi-Fi/移动数据开关，验证系统默认网络回调自动恢复可见账号；所有平台响应仍在本地拦截，不能用作真实平台会话验收。仅在项目专用模拟器上运行网络开关场景。
 
 `savedIdentityPersistsAcrossAnActualProcessRestart` 需要分两次运行，不能只在同一进程重建对象。先以 `-e sessionPhase seed` 运行该方法，确认成功；对专用测试应用执行 `am force-stop dev.bilidesk.android`，再以 `-e sessionPhase restore` 运行同一方法。后者在离线模拟传输下检查前一进程保存的加密资料，并清理假账号。不要将跳过/假设不满足的测试算作通过，也不要把测试产生的应用数据打入源码或APK。
+
+## 0.1.8 音乐与账号互动
+
+`SocialMusicDeviceTest`使用离线拦截的假账号，实际点击普通播放器中的关注／取消、评论赞／取消、楼中楼、三种排序及新建收藏夹；核对写入次数、CSRF、私密标记和最早分页请求。批量歌单场景实际勾选UGC合集与分P，保存并重建存储对象、创建／改名／删除歌单，验证保存／删除不改变当前队列，切换下一首选择正确cid。
+
+省流场景使用Media3的`AnalyticsListener.onLoadStarted`记录播放器实际读取的媒体URI，确认最初只有独立音轨，显式点唱片后才加载和解码视频，同时核对纯音乐不调用模拟视频CDN探测地址。这个场景使用本地独立音／视频文件，证明媒体源选择和实际解码行为，不测量真实运营商账单，也不证明平台当前返回哪种音质。外观场景实际选择样式、读取恢复设置并截图。
+
+`NewInteractionsDeviceTest`在锁定4倍后用屏幕触摸暂停、确认无锁定标记、再次触摸恢复，再恢复1.25倍。原来的`MusicModeDeviceTest`继续覆盖歌词点击跳转、搜索小播放条、后台、MediaController下一首、原视频画面、媒体项身份和平板双栏；进入歌单库的步骤按新的播放器首页更新。所有互动写请求只在测试夹具内返回，不操作真实账号。
+
+播放测试类建议分独立instrumentation进程运行，类之间对专用模拟器上的测试应用执行`am force-stop`，保留独立样片文件。`VideoTouchInput`由系统`input touchscreen swipe`生成完整轨迹，避免多个测试端Binder调用把快速移动延迟为长按；按住倍速与进度测试仍发送明确的DOWN／保持／MOVE／UP。`ShortVideoDeviceTest`失败时记录播放器状态、暂停原因与调用位置，不能通过强行恢复播放掩盖异常。

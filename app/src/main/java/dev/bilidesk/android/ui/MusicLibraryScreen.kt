@@ -37,21 +37,28 @@ import kotlinx.coroutines.*
         if (split && maxWidth >= 700.dp) Row(Modifier.fillMaxSize()) {
             Box(Modifier.width(libraryWidth).fillMaxHeight()) { MusicLibraryContent(vm) }
             MusicPlayerPane(vm, Modifier.weight(1f).fillMaxHeight().padding(12.dp).clip(RoundedCornerShape(24.dp)), embedded = true)
-        } else MusicLibraryContent(vm)
+        } else MusicPlayerPane(vm, Modifier.fillMaxSize(), embedded = true)
     }
 }
 
-@Composable private fun MusicLibraryContent(vm: AppViewModel) {
+@Composable fun MusicLibraryContent(vm: AppViewModel) {
     val user by vm.user.collectAsStateWithLifecycle()
     val recent by Graph.player.music.recent.collectAsStateWithLifecycle()
     val caches by Graph.store.caches.collectAsStateWithLifecycle()
     val status by Graph.player.music.status.collectAsStateWithLifecycle()
+    val library by Graph.player.music.library.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var selectedLocal by rememberSaveable { mutableStateOf<String?>(null) }
+    var createLocal by remember { mutableStateOf(false) }
+    var createCloud by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf("歌单") }
     var selected by rememberSaveable { mutableStateOf<Long?>(null) }
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    if (createLocal) PlaylistNameDialog(onDismiss = { createLocal = false }, onSave = { Graph.player.music.library.create(it) })
+    if (createCloud) CreateFolderDialog({ createCloud = false; reload++ }, { })
     LaunchedEffect(user?.mid, reload) {
         if (user == null) { folders = emptyList(); return@LaunchedEffect }
         busy = true; error = null
@@ -63,14 +70,28 @@ import kotlinx.coroutines.*
             IconButton(onClick = { vm.navigate("music_search") }) { Icon(Icons.Default.Search, "搜索歌曲") }
             IconButton(onClick = { vm.openMusicPlayer() }) { Icon(Icons.Default.Album, "打开音乐播放器") }
         }
-        Tabs(listOf("歌单", "最近", "离线"), tab) { tab = it; selected = null }
+        Tabs(listOf("歌单", "最近", "离线"), tab) { tab = it; selected = null; selectedLocal = null }
         if (status.loadingPlaylist) Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Text("正在读取歌单 · ${status.loadedSongs} 首", Modifier.weight(1f).padding(start = 8.dp), fontSize = 12.sp)
             TextButton(onClick = { Graph.player.music.cancelPlaylist() }) { Text("取消") }
         }
         status.error?.let { Text(it, Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
-        if (tab == "歌单" && selected != null) {
+        if (tab == "歌单" && selectedLocal != null) {
+            val playlist = library.playlists.firstOrNull { it.id == selectedLocal }
+            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { selectedLocal = null }) { Text("全部歌单") }
+                Text(playlist?.name ?: "歌单已删除", Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                TextButton(enabled = playlist?.tracks?.isNotEmpty() == true, onClick = { Graph.player.music.playPlaylist(selectedLocal!!); vm.openMusicPlayer() }) { Text("播放全部") }
+            }
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp)) {
+                items(playlist?.tracks.orEmpty(), key = { it.key }) { track -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { MusicSongRow(track.video, vm, track.displayTitle, cid = track.cid, onPlay = { Graph.player.music.playTrack(track); vm.openMusicPlayer() }) }
+                    IconButton(onClick = { scope.launch { try { Graph.player.music.library.remove(selectedLocal!!, track.key) } catch (e: Exception) { if (e is CancellationException) throw e; vm.notices.tryEmit(e.message ?: "保存失败") } } }) { Icon(Icons.Default.RemoveCircleOutline, "从歌单移除 ${track.displayTitle}") }
+                } }
+                if (playlist?.tracks.isNullOrEmpty()) item { Text("歌单还没有歌曲，可从搜索或合集选曲中加入。", fontSize = 13.sp) }
+            }
+        } else if (tab == "歌单" && selected != null) {
             val folder = folders.firstOrNull { it.id == selected }
             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { selected = null }) { Text("全部歌单") }
@@ -81,6 +102,10 @@ import kotlinx.coroutines.*
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (tab) {
                 "歌单" -> {
+                    item { Row(verticalAlignment = Alignment.CenterVertically) { Text("我的歌单 · 本机", Modifier.weight(1f), fontWeight = FontWeight.Medium); TextButton(onClick = { createLocal = true }) { Text("新建歌单") } } }
+                    items(library.playlists, key = { "local:${it.id}" }) { playlist -> LocalPlaylistRow(playlist, vm) { selectedLocal = playlist.id } }
+                    if (library.playlists.isEmpty()) item { Text("把喜欢的歌曲或合集分P保存到多个歌单。", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    item { Row(verticalAlignment = Alignment.CenterVertically) { Text("B站收藏夹", Modifier.weight(1f), fontWeight = FontWeight.Medium); TextButton(onClick = { vm.requireLogin { createCloud = true } }) { Text("新建收藏夹") } } }
                     if (user == null) item { Text("登录后，将B站收藏夹作为歌单收听。", fontSize = 13.sp); Button(onClick = { vm.navigate("login") }) { Text("登录 B站") } }
                     if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error); TextButton(onClick = { reload++ }) { Text("重新读取") } } }
@@ -96,12 +121,12 @@ import kotlinx.coroutines.*
                 }
                 "最近" -> {
                     if (recent.isEmpty()) item { Text("听过的歌曲会显示在这里。", fontSize = 13.sp) }
-                    items(recent, key = { it.key }) { track -> MusicSongRow(track.video, vm, title = track.displayTitle, onPlay = { Graph.player.music.playTrack(track); vm.openMusicPlayer() }) }
+                    items(recent, key = { it.key }) { track -> MusicSongRow(track.video, vm, title = track.displayTitle, cid = track.cid, onPlay = { Graph.player.music.playTrack(track); vm.openMusicPlayer() }) }
                 }
                 else -> {
                     val audio = caches.filter { it.type == "audio" }
                     if (audio.isEmpty()) item { Text("缓存为「仅音频」的歌曲会显示在这里。", fontSize = 13.sp) }
-                    items(audio, key = { it.key }) { entry -> MusicSongRow(entry.video, vm, title = entry.pageTitle.ifBlank { entry.video.title }, onPlay = { vm.openCache(entry) }) }
+                    items(audio, key = { it.key }) { entry -> MusicSongRow(entry.video, vm, title = entry.pageTitle.ifBlank { entry.video.title }, cid = entry.cid, onPlay = { vm.openCache(entry) }) }
                 }
             }
         }
@@ -138,10 +163,15 @@ import kotlinx.coroutines.*
     }
 }
 
-@Composable fun MusicSongRow(video: Video, vm: AppViewModel, title: String = video.title, onPlay: () -> Unit = { vm.playMusic(video) }) {
+@Composable fun MusicSongRow(video: Video, vm: AppViewModel, title: String = video.title, cid: Long = 0, onPlay: () -> Unit = { vm.playMusic(video) }) {
     val scope = rememberCoroutineScope()
     var more by remember { mutableStateOf(false) }
     var favorite by remember { mutableStateOf(false) }
+    var save by remember { mutableStateOf(false) }
+    var batch by remember { mutableStateOf(false) }
+    val track = MusicTrack(video, cid, title)
+    if (save) SaveTracksDialog(listOf(track), { save = false }, { save = false; vm.notices.tryEmit("已加入歌单") })
+    if (batch) MusicBatchDialog(video, vm) { batch = false }
     var download by remember { mutableStateOf<Pair<Video, Episode>?>(null) }
     if (favorite) MusicFavoriteDialog(video, vm) { favorite = false }
     download?.let { (v, ep) -> DownloadOptionsDialog(v, ep, { download = null }, audioDefault = true, onQueued = { vm.notices.tryEmit("已加入音频缓存队列") }) }
@@ -155,10 +185,12 @@ import kotlinx.coroutines.*
             IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, "歌曲选项 $title") }
             DropdownMenu(more, { more = false }) {
                 DropdownMenuItem(text = { Text("立即播放") }, onClick = { more = false; onPlay() })
-                DropdownMenuItem(text = { Text("下一首播放") }, onClick = { more = false; Graph.player.music.add(video, true); vm.notices.tryEmit("已设为下一首") })
-                DropdownMenuItem(text = { Text("加入播放队列") }, onClick = { more = false; Graph.player.music.add(video); vm.notices.tryEmit("已加入播放队列") })
+                DropdownMenuItem(text = { Text("下一首播放") }, onClick = { more = false; Graph.player.music.addTrack(track, true); vm.notices.tryEmit("已设为下一首") })
+                DropdownMenuItem(text = { Text("加入播放队列") }, onClick = { more = false; Graph.player.music.addTrack(track); vm.notices.tryEmit("已加入播放队列") })
+                DropdownMenuItem(text = { Text("加入歌单") }, onClick = { more = false; save = true })
+                DropdownMenuItem(text = { Text("合集 / 分P选曲") }, onClick = { more = false; batch = true })
                 DropdownMenuItem(text = { Text("收藏到收藏夹") }, onClick = { more = false; vm.requireLogin { favorite = true } })
-                DropdownMenuItem(text = { Text("缓存音频") }, onClick = { more = false; scope.launch { try { val detail = Graph.api.detail(video); detail.pages.firstOrNull()?.let { download = detail.video to it } } catch (e: Exception) { if (e is CancellationException) throw e; vm.notices.tryEmit(e.message ?: "无法读取歌曲") } } })
+                DropdownMenuItem(text = { Text("缓存音频") }, onClick = { more = false; scope.launch { try { val detail = Graph.api.detail(video); (detail.pages.firstOrNull { it.cid == cid } ?: detail.pages.firstOrNull())?.let { download = detail.video to it } } catch (e: Exception) { if (e is CancellationException) throw e; vm.notices.tryEmit(e.message ?: "无法读取歌曲") } } })
             }
         }
     }

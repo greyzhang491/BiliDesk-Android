@@ -51,10 +51,10 @@ import kotlinx.coroutines.*
     var ownsOrientation by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
-    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     val detail = state.detail
     var liked by remember(detail?.video?.key) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val favorites = remember(detail?.video?.key, user?.mid) { detail?.video?.let { ShortEngagement(Graph.api, it, scope) { vm.notices.tryEmit(it) } } }
     val snackbar = remember { SnackbarHostState() }
     RestorePlaybackBrightness()
     ImmersivePlayback(fullscreen, pip)
@@ -96,7 +96,7 @@ import kotlinx.coroutines.*
                 PlayerInformation(state, vm, liked, onLike = {
                     vm.requireLogin { val next = !liked; vm.action(if (next) "点赞成功" else "已取消点赞") { Graph.api.like(detail!!.video, next); liked = next } }
                 }, onFavorite = {
-                    vm.requireLogin { scope.launch { try { folders = Graph.api.folders(detail!!.video.aid); menu = "favorites" } catch (e: Exception) { if (e is CancellationException) throw e; message = e.message } } }
+                    vm.requireLogin { favorites?.loadFolders(); menu = "favorites" }
                 }, onCoin = { vm.requireLogin { menu = "coin" } }, onQuality = { menu = "quality" }, onLines = { menu = "lines" })
             })
             menu?.let { section ->
@@ -115,7 +115,7 @@ import kotlinx.coroutines.*
                             state.plan?.qualities.orEmpty().forEach { q -> TextButton(onClick = { Graph.player.quality(q); menu = null }, Modifier.fillMaxWidth()) { Text(Quality.label(q) + if (state.plan?.video?.quality == q) "  ✓" else "") } }
                         }
                         "lines" -> (listOfNotNull(state.plan?.video?.url) + state.plan?.video?.backups.orEmpty()).distinct().forEachIndexed { i, url -> TextButton(onClick = { Graph.player.line(url); menu = null }, Modifier.fillMaxWidth()) { Text("线路 ${i + 1} · ${android.net.Uri.parse(url).host.orEmpty()}", maxLines = 1, overflow = TextOverflow.Ellipsis) } }
-                        "favorites" -> { if (folders.isEmpty()) Text("没有可用收藏夹"); folders.forEach { folder -> TextButton(onClick = { vm.action(if (folder.selected) "已移出收藏夹" else "已收藏") { Graph.api.favorite(detail!!.video.aid, folder.id, !folder.selected) }; menu = null }) { Text(folder.title + if (folder.selected) "  ✓" else "") } } }
+                        "favorites" -> favorites?.let { ShortFavoritePanel(it) }
                         "coin" -> CoinPanel(detail!!.video, onLogin = { menu = null; vm.navigate("login") })
                         else -> {
                             MenuRow(Icons.Default.Speed, "播放倍速", speedLabel(Graph.player.exo.playbackParameters.speed)) { menu = "speed" }
@@ -141,18 +141,12 @@ import kotlinx.coroutines.*
     if (download) Graph.player.currentEpisode()?.let { ep -> DownloadOptionsDialog(video, ep, { download = false }, onQueued = { vm.notices.tryEmit("已加入缓存队列") }) }
     var tab by remember { mutableStateOf("简介") }
     var descriptionExpanded by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }; var dmText by remember { mutableStateOf("") }
-    var comments by remember(video.key) { mutableStateOf<List<Comment>>(emptyList()) }
+    var dmText by remember { mutableStateOf("") }
     var related by remember(video.key) { mutableStateOf<List<Video>>(emptyList()) }
-    var commentError by remember { mutableStateOf<String?>(null) }
-    var commentPage by remember(video.key) { mutableIntStateOf(1) }
-    var commentBusy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     LaunchedEffect(video.bvid) { if (video.bvid.isNotBlank()) runCatching { Graph.api.related(video.bvid) }.onSuccess { related = it } }
-    fun loadComments() { if (commentBusy) return; commentBusy = true; scope.launch { try { comments = comments + Graph.api.comments(video.aid, commentPage); commentPage++; commentError = null } catch (e: Exception) { if (e is CancellationException) throw e; commentError = e.message } finally { commentBusy = false } } }
-    LaunchedEffect(tab, video.aid) { if (tab == "评论" && comments.isEmpty() && video.aid > 0) loadComments() }
     Column(Modifier.fillMaxSize().semantics { contentDescription = "视频详情区域" }) {
         Tabs(listOf("简介", "评论", "相关推荐"), tab) { tab = it }
+        if (tab == "评论") { VideoComments(video, vm); return@Column }
         LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (tab == "简介") {
                 item { Text(video.title, style = MaterialTheme.typography.titleLarge, lineHeight = 29.sp); Text(if (video.kind == "live") "${countLabel(video.plays)} 人气 · ${video.subtitle}" else "${countLabel(video.plays)} 次播放 · ${countLabel(video.danmaku)} 条弹幕${if (state.local) " · 本地缓存" else ""}", Modifier.padding(top = 8.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -174,17 +168,11 @@ import kotlinx.coroutines.*
                     PlayerAction(Icons.Default.Share, "分享", { runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "${video.title}\n${video.url}"), "分享视频")) } })
                 } }
                 if (detail.pages.size > 1) item { Text("选集 · ${detail.pages.size}", style = MaterialTheme.typography.titleMedium); LazyRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { itemsIndexed(detail.pages) { i, episode -> FilterChip(selected = state.pageIndex == i, onClick = { Graph.player.page(i) }, label = { Text("${i + 1}. ${episode.title}", maxLines = 1, modifier = Modifier.widthIn(max = 180.dp), overflow = TextOverflow.Ellipsis, fontSize = 12.sp) }) } } }
-                if (video.author.isNotBlank()) item { Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) { Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AccountCircle, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary); Column(Modifier.weight(1f).padding(horizontal = 10.dp).clickable { if (video.mid > 0) vm.navigate("feed", "space:${video.mid}", video.author) }) { Text(video.author, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("查看 UP 主投稿", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; if (video.mid > 0) OutlinedButton(onClick = { vm.requireLogin { vm.action("关注成功") { Graph.api.follow(video.mid, true) } } }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) { Text("关注", fontSize = 11.sp) } } } }
+                if (video.author.isNotBlank()) item { Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) { Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AccountCircle, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary); Column(Modifier.weight(1f).padding(horizontal = 10.dp).clickable { if (video.mid > 0) vm.navigate("feed", "space:${video.mid}", video.author) }) { Text(video.author, fontSize = 14.sp, fontWeight = FontWeight.Bold); Text("查看 UP 主投稿", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; if (video.mid > 0) CreatorFollowButton(video.mid, vm) } } }
                 if (detail.description.isNotBlank()) item { Text(detail.description, Modifier.clickable { descriptionExpanded = !descriptionExpanded }, maxLines = if (descriptionExpanded) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 21.sp) }
                 if (video.kind != "live" && !state.local) item { Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(dmText, { dmText = it }, Modifier.weight(1f), placeholder = { Text("发一条友善的弹幕", fontSize = 12.sp) }, singleLine = true, shape = RoundedCornerShape(16.dp)); IconButton(onClick = { if (dmText.isNotBlank()) vm.requireLogin { val outgoing = dmText; vm.action("弹幕已发送") { Graph.api.sendDanmaku(Graph.player.currentEpisode()!!.cid, outgoing, Graph.player.exo.currentPosition); dmText = "" } } }) { Icon(Icons.Default.Send, "发送弹幕") } }; if (state.dmError) TextButton(onClick = { Graph.player.reloadDanmaku() }) { Text("弹幕加载失败，点击重试", fontSize = 11.sp) } }
                 item { Text("双击左右快退 / 快进 10 秒 · 长按倍速可在播放设置中调整", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp) }
                 item { TextButton(onClick = { browse(context, video.url) }) { Text("在官方网页打开", fontSize = 12.sp) } }
-            } else if (tab == "评论") {
-                if (video.aid > 0) {
-                    item { Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(commentText, { commentText = it }, Modifier.weight(1f), placeholder = { Text("说点什么…", fontSize = 12.sp) }, maxLines = 4); IconButton(onClick = { if (commentText.isNotBlank()) vm.requireLogin { val outgoing = commentText; vm.action("评论已发布") { Graph.api.sendComment(video.aid, outgoing); commentText = "" } } }) { Icon(Icons.Default.Send, "发布评论") } } }
-                    itemsIndexed(comments) { _, c -> Row { AsyncImage(c.avatar, c.name, Modifier.size(32.dp).clip(RoundedCornerShape(10.dp))); Column(Modifier.padding(start = 12.dp)) { Text(c.name, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary); Text(c.text, Modifier.padding(vertical = 7.dp), fontSize = 13.sp, lineHeight = 21.sp); Text("${countLabel(c.likes)} 赞", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
-                    item { if (commentBusy) CircularProgressIndicator(Modifier.size(24.dp)); else TextButton(onClick = { loadComments() }) { Text(commentError ?: "加载更多评论") } }
-                } else item { Text("当前内容请在官方网页查看评论", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 items(related, key = { it.key }) { v -> CompactVideo(v) { vm.openVideo(v) } }
                 if (related.isEmpty()) item { Text("暂时没有相关视频", color = MaterialTheme.colorScheme.onSurfaceVariant) }
