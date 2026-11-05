@@ -29,3 +29,9 @@ f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44
 本轮未完成新增的真实B站网络播放、字幕接口和CDN下载验收，未新增K60/小米平板6真机验证。内容、会员和地区权限以平台返回为准。短视频内容复用普通推荐，不是官方私有Story流。
 
 [使用说明](USAGE.pdf) · [验证摘要](../validation/interaction-checks-0.1.6.json)
+
+## 开源仓库
+
+提供按职责划分的源码导览、架构图、构建与贡献指南、Issue/PR模板及自动检查。公开整理仅修正一项 Linux 回环续传测试的地址绑定，运行源码与原签名 APK 保持一致。[修正后的 GitHub 检查通过](https://github.com/greyzhang491/BiliDesk-Android/actions/runs/41953045721)。
+
+使用与分发前请阅读 [免责声明](../DISCLAIMER.md)、[隐私说明](../PRIVACY.md)、[来源与许可](../NOTICE.md) 和 [GPL-3.0许可](../LICENSE)。这些说明不授予第三方视频或音乐内容权利，也不能保证免除法律责任。

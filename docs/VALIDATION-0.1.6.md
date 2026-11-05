@@ -23,3 +23,11 @@ Android8.0+，版本0.1.6 / versionCode7。与0.1.5同签名，直接覆盖安�
 安装包：BiliDesk-Android-0.1.6-preview.apk。源码：BiliDesk-Android-0.1.6-source.zip。
 
 APK SHA256：f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44
+
+## 公开仓库 CI 与源码对应
+
+首次推送 `7916ce9` 已成功上传源码，但 [首次 Actions 检查](https://github.com/greyzhang491/BiliDesk-Android/actions/runs/41950393587) 因 `RangeDownloaderTest.brokenBodyResumesAtWrittenOffsetInsteadOfZero` 的回环连接异常失败，78项测试中1项未通过。这一记录保留，不计为成功验证。
+
+提交 `9827721` 将该测试的模拟服务器绑定与重连 URL 都固定为 `127.0.0.1`，消除对 `localhost` 在不同系统上解析到不同接口的依赖，仍实际模拟响应体中断并核对续传偏移与最终字节。修正后的本地78项测试全部通过；[后续 GitHub Linux 检查](https://github.com/greyzhang491/BiliDesk-Android/actions/runs/41953045721) 的编译、JVM测试、Lint及设备测试包编译全部通过。CI 不运行设备交互场景。
+
+此次公开整理保持应用运行源码、构建配置、资源与原签名 APK 不变；除上述测试文件外，原交付的88项文件中其余87项字节校验值一致。测试文件的原始与当前 SHA256 均保存在 [源码一致性清单](../validation/source-integrity-0.1.6.json)。新增维护文档不打包为应用运行代码。Release 继续提供已经过原有设备验证的 APK，Actions 产生的临时调试签名 APK 单独作为开发产物。
