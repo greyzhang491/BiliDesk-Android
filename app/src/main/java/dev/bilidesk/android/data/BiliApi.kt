@@ -40,7 +40,7 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     suspend fun warmUp(): Unit = identityMutex.withLock {
         if (cookies.value("buvid3").isNotBlank()) return@withLock
         val j = json("/x/frontend/finger/spi")
-        cookies.putLogin(mapOf("buvid3" to j.optString("b_3"), "buvid4" to j.optString("b_4")).filterValues { it.isNotBlank() })
+        withContext(Dispatchers.IO) { cookies.putLogin(mapOf("buvid3" to j.optString("b_3"), "buvid4" to j.optString("b_4")).filterValues { it.isNotBlank() }) }
     }
     private suspend fun signingKey(refresh: Boolean = false): String = keyMutex.withLock {
         if (refresh || mixin == null || System.currentTimeMillis() - keyAt > 3600000) {
@@ -77,9 +77,9 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     }
     suspend fun post(path: String, params: Map<String, String>, host: String = base, referer: String = "https://www.bilibili.com/"): JSONObject = accountWrites.post(path, params, host, referer)
     suspend fun user(): User? {
-        val j = json("/x/web-interface/nav", allowAnonymous = true)
-        if (!j.optBoolean("isLogin")) return null
-        return User(j.optLong("mid"), j.optString("uname"), j.optString("face").https(), j.obj("level_info").optInt("current_level"), j.obj("vip").optInt("status") == 1)
+        val j = try { json("/x/web-interface/nav") }
+        catch (error: ApiException) { if (error.code == -101) return null else throw error }
+        return AccountUserResponse.parse(j)
     }
     suspend fun feed(tab: String, page: Int = 1, region: Int = 0): FeedPage {
         if (tab in listOf("分区", "推荐")) warmUp()

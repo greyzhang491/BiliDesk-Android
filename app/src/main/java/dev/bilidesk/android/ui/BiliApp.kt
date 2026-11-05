@@ -262,14 +262,19 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
 }
 
 @Composable fun LibraryScreen(vm: AppViewModel, user: User?) {
+    val account by vm.account.collectAsStateWithLifecycle()
     val caches by Graph.store.caches.collectAsStateWithLifecycle()
     val history by Graph.store.history.collectAsStateWithLifecycle()
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
-                Row(Modifier.fillMaxWidth().clickable { if (user == null) vm.navigate("login") }.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().clickable { if (user == null) vm.requireLogin {} else if (!account.checking) vm.retryAccount() }.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (user != null) AsyncImage(user.avatar, "头像", Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))) else Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .13f)) { Icon(Icons.Default.PersonOutline, null, Modifier.padding(14.dp).size(30.dp), tint = MaterialTheme.colorScheme.primary) }
-                    Column(Modifier.weight(1f).padding(start = 15.dp)) { Text(user?.name ?: "登录，接上你的热爱", fontSize = 17.sp, fontWeight = FontWeight.Bold); Text(if (user == null) "同步收藏和观看记录" else "LV ${user.level}  ·  UID ${user.mid}${if (user.vip) "  ·  大会员" else ""}", Modifier.padding(top = 6.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Column(Modifier.weight(1f).padding(start = 15.dp)) {
+                        Text(user?.name ?: "登录，接上你的热爱", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(account.message ?: if (user == null) "同步收藏和观看记录" else "LV ${user.level}  ·  UID ${user.mid}${if (user.vip) "  ·  大会员" else ""}", Modifier.padding(top = 6.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (account.status in setOf(AccountStatus.RETRY_PENDING, AccountStatus.STORAGE_UNAVAILABLE)) TextButton(onClick = { vm.retryAccount() }, contentPadding = PaddingValues(0.dp)) { Text("重试同步", fontSize = 11.sp) }
+                    }
                     if (user == null) Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
                 }
             }

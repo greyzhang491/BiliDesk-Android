@@ -80,6 +80,7 @@ import kotlinx.coroutines.*
 @SuppressLint("SetJavaScriptEnabled")
 @Composable fun OfficialLogin(vm: AppViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableIntStateOf(0) }
     var checking by remember { mutableStateOf(false) }
@@ -87,8 +88,13 @@ import kotlinx.coroutines.*
         val raw = CookieManager.getInstance().getCookie("https://www.bilibili.com/").orEmpty()
         val values = raw.split(';').mapNotNull { item -> val index = item.indexOf('='); if (index <= 0) null else item.substring(0, index).trim() to item.substring(index + 1).trim() }.toMap()
         if (values["SESSDATA"].isNullOrBlank()) return
-        Graph.cookies.putLogin(values)
-        if (!checking) { checking = true; vm.loggedIn() }
+        if (!checking) {
+            checking = true
+            scope.launch {
+                try { withContext(Dispatchers.IO) { Graph.cookies.putLogin(values) }; vm.loggedIn() }
+                catch (error: Exception) { if (error is CancellationException) throw error; checking = false; vm.notices.tryEmit("本机登录信息保存失败，请稍后重试") }
+            }
+        }
     }
     DisposableEffect(Unit) { onDispose { webView?.stopLoading(); webView?.destroy(); webView = null } }
     Column {

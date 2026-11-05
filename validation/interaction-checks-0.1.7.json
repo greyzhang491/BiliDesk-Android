@@ -1,0 +1,84 @@
+{
+  "version": "0.1.7",
+  "versionCode": 8,
+  "date": "2026-11-04",
+  "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa",
+  "jvmTests": {
+    "passed": 95,
+    "failed": 0,
+    "newAccountTests": 17
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 33
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 9,
+    "tabletDistinctScenarios": 8,
+    "processRestart": "seed and restore run in separate instrumentation processes, with force-stop between phases; counted once per profile",
+    "runs": [
+      {
+        "run": "account-phone-final-0.1.7",
+        "passed": 6,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "account-phone-process-seed-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "account-phone-process-restore-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "music-phone-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "short-actions-phone-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "account-tablet-final-0.1.7",
+        "passed": 6,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "account-tablet-process-seed-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "account-tablet-process-restore-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      },
+      {
+        "run": "music-tablet-final-0.1.7",
+        "passed": 1,
+        "apkSha256": "630e3ea03921170fcb1003320349857a89dc33a60729b1aba105fefd615d36aa"
+      }
+    ]
+  },
+  "baseline": {
+    "version": "0.1.6",
+    "offlineColdStartRegression": "failed while session cookie remained present"
+  },
+  "intermediateFindings": [
+    "Async preference writes lost profile/cookie data before process exit; final build confirms critical writes on the I/O dispatcher. Earlier failures are retained locally."
+  ],
+  "sameUpgradeCertificateAs016": true,
+  "alignment16Kb": true,
+  "actualSystemWifiEventsTested": true,
+  "encryptedProcessPersistenceTested": true,
+  "platformResponses": "Explicit fake accounts and local HTTP interceptors; music uses independent Media3 media.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliSessionRetestPassed": false,
+  "resetVoucherUsed": false
+}

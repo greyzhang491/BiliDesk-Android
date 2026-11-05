@@ -15,7 +15,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import dev.bilidesk.android.data.accountNetworkAvailability
 import dev.bilidesk.android.ui.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity: ComponentActivity() {
     private val vm by viewModels<AppViewModel>()
@@ -28,9 +35,16 @@ class MainActivity: ComponentActivity() {
             val settings by Graph.store.settings.collectAsStateWithLifecycle()
             BiliTheme(settings) { BiliApp(vm, pip, onPip = { runCatching { enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()) } }) }
         }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                accountNetworkAvailability(applicationContext).collectLatest { available ->
+                    if (available) { delay(600); vm.onNetworkRecovered() }
+                }
+            }
+        }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handleIntent(intent) }
-    override fun onStart() { super.onStart(); Graph.player.resumeVideoTrack() }
+    override fun onStart() { super.onStart(); Graph.player.resumeVideoTrack(); vm.refreshUser() }
     private fun handleIntent(intent: Intent?) {
         when {
             intent?.getBooleanExtra("open_player", false) == true -> vm.openPlayer()

@@ -15,7 +15,7 @@
 | 短视频动作、速度与评论 | `ui/ShortVideoScreen.kt`、`ShortVideoActions.kt`、`PlaybackGestures.kt`、`VideoComments.kt` | `ShortVideoDeviceTest`、`ShortActionsDeviceTest`、`NewInteractionsDeviceTest` |
 | 弹幕解析与即时设置 | `data/DanmakuParser.kt`、`player/DanmakuView.kt`、`ui/PlaybackSettings.kt` | `CoreTest`、`DanmakuRenderDeviceTest` |
 | 缓存质量、续传与空间 | `ui/DownloadOptions.kt`、`download/`、`data/CachePolicy.kt`、`data/Store.kt` | `RangeDownloaderTest`、`CacheRecoveryDeviceTest`、`CacheOptionsDeviceTest` |
-| 登录、Cookie 与互动写入 | `data/BiliApi.kt`、`AccountWriteClient.kt`、`Store.kt`、`ui/AccountScreens.kt` | `AccountWriteTest`、使用模拟账号的设备测试 |
+| 登录、Cookie 与互动写入 | `data/AccountSession.kt`、`AccountNetworkMonitor.kt`、`BiliApi.kt`、`AccountWriteClient.kt`、`Store.kt`、`ui/AccountScreens.kt` | `AccountSessionTest`、`AccountWriteTest`、`SessionRecoveryDeviceTest`、`AccountReconnectUiDeviceTest` |
 
 ## 开发约定
 

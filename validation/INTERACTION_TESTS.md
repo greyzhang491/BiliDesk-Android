@@ -35,3 +35,9 @@ adb shell am instrument -w -r -e playback_fixture true -e class dev.bilidesk.and
 `NewInteractionsDeviceTest`用真实长按/下拉/继续移动/松手验证选择4倍及恢复1.25倍，检查选择时无互动按钮覆盖、没有常驻教学文案、标题接近底部。刷新用固定的旧/新列表响应，检查新内容出现在第一屏；平板使用真实1600×2560/320dpi并旋转横屏。JVM回归另验证等待追加请求、刷新去重/未见优先和有界后续读取。
 
 系统桌面切换必须等待桌面可见并停留，不能刚按Home立即重新启动而把过渡当作后台播放。模拟触摸再次长按已锁定的速度时也需等待长按时间，不能因当前速度已等于锁定值就马上发送下拉。
+
+## 0.1.7 登录恢复
+
+`AccountSessionTest` 是纯JVM状态回归；`SessionRecoveryDeviceTest` 使用专用偏好文件和假账号检查离线恢复、加密资料、读取失败保留、退出隔离。`AccountReconnectUiDeviceTest` 会实际切换测试设备的 Wi-Fi/移动数据开关，验证系统默认网络回调自动恢复可见账号；所有平台响应仍在本地拦截，不能用作真实平台会话验收。仅在项目专用模拟器上运行网络开关场景。
+
+`savedIdentityPersistsAcrossAnActualProcessRestart` 需要分两次运行，不能只在同一进程重建对象。先以 `-e sessionPhase seed` 运行该方法，确认成功；对专用测试应用执行 `am force-stop dev.bilidesk.android`，再以 `-e sessionPhase restore` 运行同一方法。后者在离线模拟传输下检查前一进程保存的加密资料，并清理假账号。不要将跳过/假设不满足的测试算作通过，也不要把测试产生的应用数据打入源码或APK。

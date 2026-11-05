@@ -15,7 +15,9 @@ import okhttp3.HttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.security.KeyStore
+import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -128,24 +130,29 @@ class Store(context: Context) {
 }
 
 /** Login cookies never leave bilibili.com. The encrypted preference cannot be restored via backup. */
-class SecureCookies(context: Context, preferenceName: String = "encrypted_session"): CookieJar {
+class SecureCookies(context: Context, preferenceName: String = "encrypted_session"): CookieJar, AccountSessionStore {
     private val prefs = context.getSharedPreferences(preferenceName, Context.MODE_PRIVATE)
     private val cookies = mutableListOf<Cookie>()
     private val alias = "BiliDesk.Session.v1"
-    init {
-        runCatching {
-            val parts = prefs.getString("blob", null)?.split(':') ?: return@runCatching
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
-            JSONArray(String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)))).objects().forEach { j ->
+    private var restored = false
+    init { restoreCookies() }
+    @Synchronized private fun restoreCookies(): Boolean {
+        if (restored) return true
+        val blob = prefs.getString("blob", null)
+        if (blob == null) { restored = true; return true }
+        return runCatching {
+            val recovered = mutableListOf<Cookie>()
+            JSONArray(decrypt(blob)).objects().forEach { j ->
                 val b = Cookie.Builder().name(j.getString("name")).value(j.getString("value")).path(j.getString("path")).expiresAt(j.getLong("expires"))
                 if (j.optBoolean("hostOnly")) b.hostOnlyDomain(j.getString("domain")) else b.domain(j.getString("domain"))
                 if (j.optBoolean("secure")) b.secure()
                 if (j.optBoolean("httpOnly")) b.httpOnly()
                 val c = b.build()
-                if (allowed(c.domain) && c.expiresAt > System.currentTimeMillis()) cookies.add(c)
+                if (allowed(c.domain) && c.expiresAt > System.currentTimeMillis()) recovered.add(c)
             }
-        }.onFailure { prefs.edit().clear().apply() }
+            cookies.clear(); cookies.addAll(recovered); restored = true
+        }.isSuccess
+        // A temporary Keystore/read failure must never erase the encrypted session.
     }
     private fun allowed(host: String) = host == "bilibili.com" || host.endsWith(".bilibili.com")
     private fun key(): SecretKey {
@@ -156,28 +163,75 @@ class SecureCookies(context: Context, preferenceName: String = "encrypted_sessio
         }.generateKey()
     }
     @Synchronized override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-        if (!allowed(url.host)) return
+        if (!allowed(url.host) || !restoreCookies()) return
+        val hasSession = value("SESSDATA").isNotBlank()
+        val accountCookies = setOf("SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid")
         for (cookie in cookies.filter { allowed(it.domain) }) {
+            // Official login imports credentials explicitly. An old response after
+            // logout must not put a previous account back into an empty jar.
+            if (!hasSession && cookie.name in accountCookies) continue
             this.cookies.removeAll { it.name == cookie.name && it.domain == cookie.domain && it.path == cookie.path }
             if (cookie.expiresAt > System.currentTimeMillis()) this.cookies.add(cookie)
         }
         persist()
     }
-    @Synchronized override fun loadForRequest(url: HttpUrl): List<Cookie> = if (allowed(url.host)) cookies.filter { it.expiresAt > System.currentTimeMillis() && it.matches(url) } else emptyList()
-    @Synchronized fun value(name: String): String = cookies.firstOrNull { it.name == name && it.expiresAt > System.currentTimeMillis() }?.value.orEmpty()
+    @Synchronized override fun loadForRequest(url: HttpUrl): List<Cookie> = if (allowed(url.host) && restoreCookies()) cookies.filter { it.expiresAt > System.currentTimeMillis() && it.matches(url) } else emptyList()
+    @Synchronized fun value(name: String): String { restoreCookies(); return cookies.firstOrNull { it.name == name && it.expiresAt > System.currentTimeMillis() }?.value.orEmpty() }
     @Synchronized fun putLogin(values: Map<String, String>) {
+        if (!restoreCookies()) {
+            if (values["SESSDATA"].isNullOrBlank()) return
+            cookies.clear(); restored = true // An explicit new login replaces unreadable old credentials.
+        }
         for ((name, value) in values) {
-            if (name !in setOf("SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid", "buvid3", "buvid4")) continue
+            if (value.isBlank() || name !in setOf("SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid", "buvid3", "buvid4")) continue
             cookies.removeAll { it.name == name }
             cookies.add(Cookie.Builder().name(name).value(value).domain("bilibili.com").path("/").secure().httpOnly().expiresAt(System.currentTimeMillis() + 180L * 86400000).build())
         }
+        if (!values["SESSDATA"].isNullOrBlank()) prefs.edit().remove("rejected_session").apply()
         persist()
     }
-    @Synchronized fun clear() { cookies.clear(); prefs.edit().clear().apply() }
+    @Synchronized override fun credentialId(): String? = value("SESSDATA").takeIf { it.isNotBlank() }?.let {
+        MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { byte -> "%02x".format(byte.toInt() and 255) }
+    }
+    @Synchronized override fun cachedUser(): User? {
+        val id = credentialId() ?: return null
+        return runCatching {
+            val profile = JSONObject(decrypt(prefs.getString("profile", null) ?: return null))
+            if (profile.optString("session") != id) return null
+            val mid = profile.getLong("mid")
+            val cookieMid = value("DedeUserID").toLongOrNull()
+            if (mid <= 0 || cookieMid != null && mid != cookieMid) return null
+            User(mid, profile.getString("name"), profile.optString("avatar"), profile.optInt("level"), profile.optBoolean("vip"))
+        }.getOrNull()
+    }
+    @Synchronized override fun fallbackUser() = User(value("DedeUserID").toLongOrNull() ?: 0, "已保存的账号", "", 0, false)
+    @Synchronized override fun rejectedCredentialId(): String? = prefs.getString("rejected_session", null)
+    @Synchronized override fun rememberUser(credentialId: String, user: User) {
+        if (this.credentialId() != credentialId || user.mid <= 0) return
+        val profile = JSONObject().put("session", credentialId).put("mid", user.mid).put("name", user.name).put("avatar", user.avatar).put("level", user.level).put("vip", user.vip)
+        if (!prefs.edit().putString("profile", encrypt(profile.toString())).remove("rejected_session").commit()) throw IOException("账号资料保存失败，请稍后重试")
+    }
+    @Synchronized override fun rejectCredential(credentialId: String) {
+        if (this.credentialId() == credentialId && !prefs.edit().putString("rejected_session", credentialId).commit()) throw IOException("登录状态保存失败，请稍后重试")
+    }
+    @Synchronized override fun restorationPending(): Boolean = !restoreCookies()
+    @Synchronized override fun clear() {
+        cookies.clear(); restored = true
+        if (!prefs.edit().clear().commit()) throw IOException("本机退出信息保存失败，请稍后重试")
+    }
+    private fun decrypt(blob: String): String {
+        val parts = blob.split(':', limit = 2)
+        require(parts.size == 2)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
+        return String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
+    }
+    private fun encrypt(value: String): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key()) }
+        return Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+    }
     private fun persist() {
         val data = JSONArray(cookies.map { JSONObject().put("name", it.name).put("value", it.value).put("domain", it.domain).put("path", it.path).put("expires", it.expiresAt).put("hostOnly", it.hostOnly).put("secure", it.secure).put("httpOnly", it.httpOnly) })
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key()) }
-        val blob = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(cipher.doFinal(data.toString().toByteArray()), Base64.NO_WRAP)
-        prefs.edit().putString("blob", blob).apply()
+        if (!prefs.edit().putString("blob", encrypt(data.toString())).commit()) throw IOException("本机登录信息保存失败，请稍后重试")
     }
 }

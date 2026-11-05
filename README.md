@@ -6,10 +6,10 @@
     <a href="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml"><img src="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml/badge.svg" alt="Android checks"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
     <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 及以上">
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.6"><img src="https://img.shields.io/badge/preview-0.1.6-EC7FA9" alt="0.1.6 开发预览版"></a>
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.7"><img src="https://img.shields.io/badge/preview-0.1.7-EC7FA9" alt="0.1.7 开发预览版"></a>
   </p>
   <p>
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.6">下载安装</a> ·
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.7">下载安装</a> ·
     <a href="docs/USAGE.pdf">使用说明</a> ·
     <a href="docs/ARCHITECTURE.md">代码导览</a> ·
     <a href="CONTRIBUTING.md">参与开发</a> ·
@@ -34,17 +34,17 @@
 
 ## 下载与上手
 
-1. 打开 [v0.1.6 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.6)，下载 `BiliDesk-Android-0.1.6-preview.apk`。要求 **Android 8.0 或以上**。
+1. 打开 [v0.1.7 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.1.7)，下载 `BiliDesk-Android-0.1.7-preview.apk`。要求 **Android 8.0 或以上**。
 2. 如需账号内容，使用应用内的官方扫码或网页登录；不要向项目维护者提供密码、Cookie 或登录令牌。
 3. 在「音乐」中选择收藏夹作为歌单，或搜索视频后立即播放、设为下一首、加入队列。
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
 | 播放、手势、音乐和缓存怎么用 | [10页 PDF 使用说明](docs/USAGE.pdf) · [离线 HTML 说明](docs/USAGE.html)（下载后打开） |
-| 这一版更新了什么 | [0.1.6 版本说明](docs/RELEASE-0.1.6.md) · [变更记录](CHANGELOG.md) |
+| 这一版更新了什么 | [0.1.7 登录恢复补充](docs/RELEASE-0.1.7.md) · [变更记录](CHANGELOG.md) |
 | 如何编译、调试和提交修改 | [构建说明](docs/BUILD.md) · [开发指南](docs/DEVELOPMENT.md) · [贡献指南](CONTRIBUTING.md) |
 
-Release 中的预览 APK 与此前交付的 0.1.5 使用相同证书，可覆盖更新并保留数据。**Actions 构建包使用运行环境的临时调试证书，不能保证覆盖安装 Release 版本**。日常使用请选择 Release 附件；附件的 SHA256 校验值见同页 `SHA256SUMS.txt`。
+Release 中的预览 APK 与此前交付的 0.1.6 使用相同证书，可覆盖更新并保留数据。**Actions 构建包使用运行环境的临时调试证书，不能保证覆盖安装 Release 版本**。日常使用请选择 Release 附件；附件的 SHA256 校验值见同页 `SHA256SUMS.txt`。
 
 ## 功能一览
 
@@ -57,7 +57,7 @@ Release 中的预览 APK 与此前交付的 0.1.5 使用相同证书，可覆盖
 | 音乐模式 | 收藏夹歌单、搜歌、下一首、队列；顺序/列表循环/单曲/随机；旋转唱片、封面取色、字幕歌词或原视频、小播放条、后台控制 |
 | 弹幕 | 滚动/顶部/底部、透明度、区域、字号、速度、去重和屏蔽词；播放中即时调整 |
 | 离线与存储 | 实际可用画质、视频或音频选择；分段续传、暂停继续、恢复任务和合流；自动缓存限额与过期清理 |
-| 账号与平板 | 官方扫码/网页登录、收藏、历史、稍后再看、追番、消息入口；侧边导航、横屏双栏、全屏与分屏适配 |
+| 账号与平板 | 官方扫码/网页登录、保存登录与断网重连恢复、收藏、历史、稍后再看、追番、消息入口；侧边导航、横屏双栏、全屏与分屏适配 |
 
 音乐入口替代动态。歌词来自视频可读取的字幕，不自动生成；没有字幕时，点唱片显示原视频。短视频模式复用普通推荐和当前列表，未接入官方私有 Story 流。
 
@@ -93,6 +93,8 @@ Windows 使用 `gradlew.bat`。首次构建需要下载依赖；连接受限时�
 欢迎提交 [Issue](https://github.com/greyzhang491/BiliDesk-Android/issues/new/choose) 或 Pull Request。新贡献请先阅读 [CONTRIBUTING](CONTRIBUTING.md)；账号或凭据泄露问题请按 [SECURITY](SECURITY.md) 私下报告。
 
 ## 验证与已知限制
+
+0.1.7 修复离线启动与断网重连后误判未登录的问题，新增登录恢复回归。步骤与边界见 [0.1.7 验证说明](docs/VALIDATION-0.1.7.md)、[验证摘要](validation/interaction-checks-0.1.7.json) 和 [当前源码清单](validation/source-integrity-0.1.7.json)。以下保留0.1.6功能验证基线。
 
 0.1.6 的本地构建通过78项 JVM 测试，Lint 0错误/31警告；手机11项、平板5项模拟器交互场景按同一最终 APK 分次通过。测试使用独立样片、本地模拟接口和模拟账号，实际检查解码、媒体控制、手势、布局、缓存轨道及断点恢复。仓库顶部徽章反映最新 Actions 状态，原始失败及后续修复可在运行记录中追溯。
 
