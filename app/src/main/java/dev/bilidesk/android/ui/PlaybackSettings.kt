@@ -83,7 +83,7 @@ internal fun playerPanelHeight(height: Dp) = minOf(720.dp, height * .68f)
                 }
                 HorizontalDivider()
                 val scrolling = if (scrollContent) Modifier.verticalScroll(remember(title) { ScrollState(0) }) else Modifier
-                Column(Modifier.weight(1f).fillMaxWidth().then(scrolling).padding(20.dp), content = content)
+                Column(Modifier.weight(1f).fillMaxWidth().then(scrolling).padding(if (scrollContent) 20.dp else 0.dp), content = content)
             }
         }
     }

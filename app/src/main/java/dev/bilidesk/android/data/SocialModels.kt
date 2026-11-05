@@ -10,10 +10,21 @@ object SocialModels {
     fun following(attribute: Int) = attribute >= 0 && attribute and 128 == 0 && (attribute == 1 || attribute and 2 != 0)
     fun comment(j: JSONObject, previews: Boolean = true): Comment {
         fun id(name: String) = j.optString(name + "_str").toLongOrNull() ?: j.optLong(name)
-        val children = if (previews) j.arr("replies").objects().map { comment(it, false) } else emptyList()
-        return Comment(j.obj("member").optString("uname", "用户"), j.obj("member").optString("avatar").https(), j.obj("content").optString("message"), j.optLong("like").coerceAtLeast(0),
-            id("rpid"), j.optLong("mid", j.obj("member").optLong("mid")), j.optLong("ctime"), j.optInt("action") == 1,
-            maxOf(j.optInt("rcount"), j.optInt("count"), children.size), id("root"), id("parent"), children)
+        val member = j.obj("member"); val content = j.obj("content"); val message = content.optString("message")
+        val children = if (previews) j.arr("replies").objects().map { comment(it, false).let { child -> if (child.rootId <= 0) child.copy(rootId = id("rpid")) else child } } else emptyList()
+        val emote = content.obj("emote")
+        val emotes = emote.keys().asSequence().mapNotNull { token ->
+            val value = emote.obj(token); val url = value.optString("url").ifBlank { value.optString("webp_url") }.https()
+            if (token.isBlank() || !message.contains(token) || url.isBlank()) null else CommentEmote(token, url, value.obj("meta").optInt("size", 1).coerceIn(1, 2))
+        }.toList()
+        val mentions = content.arr("members").objects().mapNotNull { m -> m.optString("uname").takeIf { it.isNotBlank() }?.let { it to m.optLong("mid") } }.filter { it.second > 0 }.toMap()
+        return Comment(member.optString("uname").ifBlank { "用户" }, member.optString("avatar").https(), message, j.optLong("like").coerceAtLeast(0),
+            id("rpid"), j.optLong("mid").takeIf { it > 0 } ?: member.optLong("mid"), j.optLong("ctime"), j.optInt("action") == 1,
+            maxOf(j.optInt("rcount"), j.optInt("count"), children.size), id("root"), id("parent"), children,
+            level = member.obj("level_info").optInt("current_level", -1).takeIf { it in 0..6 }, location = j.obj("reply_control").optString("location").trim(),
+            vip = member.obj("vip").optInt("vipStatus", member.obj("vip").optInt("status")) == 1,
+            official = member.obj("official_verify").takeIf { it.optInt("type", -1) >= 0 }?.optString("desc").orEmpty(), disliked = j.optInt("action") == 2,
+            emotes = emotes, pictures = content.arr("pictures").objects().mapNotNull { p -> p.optString("img_src").https().takeIf { it.isNotBlank() }?.let { CommentPicture(it, p.optInt("img_width"), p.optInt("img_height")) } }, mentions = mentions)
     }
     fun page(j: JSONObject, page: Int, order: CommentOrder, replies: Boolean = false, size: Int = 20): CommentPage {
         val body = j.arr("replies").objects().map { comment(it, !replies) }

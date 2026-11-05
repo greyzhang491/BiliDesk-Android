@@ -1,0 +1,101 @@
+{
+  "version": "0.2.1",
+  "versionCode": 12,
+  "date": "2026-11-05",
+  "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+  "currentTestApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5",
+  "jvmTests": {
+    "passed": 122,
+    "failed": 0,
+    "skipped": 0,
+    "newJvmTests": 8
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 36
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 7,
+    "tabletDistinctScenarios": 3,
+    "runs": [
+      {
+        "run": "021-phone-comments-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-short-comments-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-errors-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-social-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-speed-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-fullscreen-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-phone-short-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-tablet-comments-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-tablet-short-comments-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      },
+      {
+        "run": "021-tablet-layout-final",
+        "passed": 1,
+        "apkSha256": "f18b674ede575d43d839085834ebddaea6eac698be5c62f1185e9c6e34be41d8",
+        "testApkSha256": "a8c3209c61821acc464314e17ec0d188a897f0cb832496eadefcace2a56a25f5"
+      }
+    ]
+  },
+  "coverage": [
+    "comment avatars/metadata/rich text/images/light-dark themes",
+    "mutually exclusive like/dislike and targeted nested replies with csrf",
+    "profile data, upload playback, mapped and nickname-only mention navigation including nested previews",
+    "scroll away from the top, post a reply, return and compare the same entry position; no redundant return text",
+    "short comment profile/thread browsing and landscape retain the same playing MediaItem",
+    "read failure stops retries; unknown write retains draft and prevents duplicate submission",
+    "existing comment sorting and favorite-folder creation",
+    "held speed overlay absent while acceleration, seeking and lock selection still operate"
+  ],
+  "platformResponses": "Offline API35 emulators; all account responses/writes are local interceptors; independent UI DEMO artwork and sample media.",
+  "scope": "Counts cover only successful isolated processes on this exact application APK. Each instrumentation binary is retained and hashed. Failed/old runs are excluded.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliNetworkingRetestPassed": false,
+  "sameUpgradeCertificateAs020": true,
+  "alignment16Kb": true
+}

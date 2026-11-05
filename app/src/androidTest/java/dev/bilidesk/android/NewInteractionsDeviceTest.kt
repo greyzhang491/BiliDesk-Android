@@ -58,6 +58,9 @@ class NewInteractionsDeviceTest {
                         try {
                             SystemClock.sleep(650)
                             assertTrue("Hold did not accelerate", waitFor(2500) { Graph.player.exo.playbackParameters.speed == 3f || Graph.player.exo.playbackParameters.speed == 4f })
+                            if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
+                            assertFalse("Held speed label obstructs the picture", device.hasObject(By.text("3×")))
+                            device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "hold-clear-0.2.1.png"))
                             pointer(down, MotionEvent.ACTION_MOVE, 80f)
                             assertTrue("Speed chooser did not open", device.wait(Until.hasObject(By.text("松手确定")), 4000))
                             assertFalse("Story actions overlap the speed chooser", device.hasObject(By.desc("点赞视频")))

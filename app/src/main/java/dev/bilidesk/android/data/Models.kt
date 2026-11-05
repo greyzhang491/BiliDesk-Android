@@ -47,7 +47,9 @@ data class VideoDetail(val video: Video, val description: String, val pages: Lis
 data class FeedPage(val videos: List<Video>, val next: String = "", val more: Boolean = true)
 data class User(val mid: Long, val name: String, val avatar: String, val level: Int, val vip: Boolean)
 data class Folder(val id: Long, val title: String, val count: Int, val selected: Boolean = false)
-data class Comment(val name: String, val avatar: String, val text: String, val likes: Long, val id: Long = 0, val mid: Long = 0, val createdAt: Long = 0, val liked: Boolean = false, val replyCount: Int = 0, val rootId: Long = 0, val parentId: Long = 0, val replies: List<Comment> = emptyList(), val pinned: Boolean = false) {
+data class Comment(val name: String, val avatar: String, val text: String, val likes: Long, val id: Long = 0, val mid: Long = 0, val createdAt: Long = 0, val liked: Boolean = false, val replyCount: Int = 0, val rootId: Long = 0, val parentId: Long = 0, val replies: List<Comment> = emptyList(), val pinned: Boolean = false,
+    val level: Int? = null, val location: String = "", val vip: Boolean = false, val official: String = "", val disliked: Boolean = false,
+    val emotes: List<CommentEmote> = emptyList(), val pictures: List<CommentPicture> = emptyList(), val mentions: Map<String, Long> = emptyMap()) {
     val key get() = if (id > 0) "$id" else "$name:$createdAt:$text"
 }
 data class DynamicItem(val id: String, val name: String, val avatar: String, val text: String, val published: String, val video: Video?, val pictures: List<String>)

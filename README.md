@@ -6,11 +6,11 @@
     <a href="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml"><img src="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml/badge.svg" alt="Android checks"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
     <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 及以上">
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/preview-0.2.0-EC7FA9" alt="0.2.0 开发预览版"></a>
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.1"><img src="https://img.shields.io/badge/preview-0.2.1-EC7FA9" alt="0.2.1 开发预览版"></a>
   </p>
   <p>
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.0">下载安装</a> ·
-    <a href="docs/RELEASE-0.2.0.md">使用说明</a> ·
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.1">下载安装</a> ·
+    <a href="docs/RELEASE-0.2.1.md">使用说明</a> ·
     <a href="docs/ARCHITECTURE.md">代码导览</a> ·
     <a href="CONTRIBUTING.md">参与开发</a> ·
     <a href="https://github.com/greyzhang491/BiliDesk-Android/issues/new/choose">反馈问题</a>
@@ -22,6 +22,14 @@
 > **独立、非官方的开发预览项目**，与哔哩哔哩及上游作者没有官方关联或背书。使用、修改与分发前请阅读 [免责声明](DISCLAIMER.md)、[隐私说明](PRIVACY.md) 和 [GPL-3.0 许可](LICENSE)。开源许可适用于代码，不授予平台视频、音乐、字幕或商标的使用权。
 
 ## 界面预览
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/comments-light.png" width="230" alt="浅色评论：头像、等级、属地、彩色提及与楼中楼"><br>评论 · 清晰分层</td>
+    <td align="center"><img src="docs/screenshots/comments-dark.png" width="230" alt="深色评论与强调色用户名链接"><br>深色 · 彩色提及</td>
+    <td align="center"><img src="docs/screenshots/commenter-profile.png" width="230" alt="点击评论者进入用户资料和投稿页面"><br>用户主页 · 投稿</td>
+  </tr>
+</table>
 
 <table>
   <tr>
@@ -39,8 +47,9 @@
 </table>
 
 <details>
-<summary>更多预览：平板推荐、深色个人页和播放器样式</summary>
+<summary>更多预览：平板评论／推荐、深色个人页和播放器样式</summary>
 <table>
+  <tr><td align="center"><img src="docs/screenshots/comments-tablet.png" width="800" alt="平板横屏视频与评论并排，楼中楼和用户名链接清晰分层"><br>平板 · 视频与评论</td></tr>
   <tr><td align="center"><img src="docs/screenshots/feed-tablet.png" width="800" alt="平板横屏推荐与侧边导航"><br>平板 · 发现</td></tr>
 </table>
 <table>
@@ -52,18 +61,18 @@
 </table>
 </details>
 
-截图使用假账号、独立样片和标明 `UI DEMO` 的测试封面，展示本次实际运行布局。视觉参考、组件入口和素材约定见 [界面设计说明](docs/UI-DESIGN.md)。
+截图使用假账号、独立样片和标明 `UI DEMO` 的测试头像／配图，展示实际运行布局；视频测试画面的署名与许可见 [NOTICE](NOTICE.md)。视觉参考、组件入口和素材约定见 [界面设计说明](docs/UI-DESIGN.md)。
 
 ## 下载与上手
 
-1. 打开 [v0.2.0 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.0)，下载 `BiliDesk-Android-0.2.0-preview.apk`。要求 **Android 8.0 或以上**。
+1. 打开 [v0.2.1 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.1)，下载 `BiliDesk-Android-0.2.1-preview.apk`。要求 **Android 8.0 或以上**。
 2. 如需账号内容，使用应用内的官方扫码或网页登录；不要向项目维护者提供密码、Cookie 或登录令牌。
 3. 点击「音乐」进入播放器，可直接搜歌；「我的歌单」管理多个本机歌单和B站收藏夹，支持合集／分P批量选曲。
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
 | 播放、手势、音乐和缓存怎么用 | [0.1.8 音乐与互动说明](docs/RELEASE-0.1.8.md) · [基础 PDF（0.1.6）](docs/USAGE.pdf) · [基础离线 HTML（0.1.6）](docs/USAGE.html) |
-| 这一版更新了什么 | [0.2.0 界面更新](docs/RELEASE-0.2.0.md) · [变更记录](CHANGELOG.md) |
+| 这一版更新了什么 | [0.2.1 评论与主页](docs/RELEASE-0.2.1.md) · [0.2.0 界面更新](docs/RELEASE-0.2.0.md) · [变更记录](CHANGELOG.md) |
 | 如何编译、调试和提交修改 | [构建说明](docs/BUILD.md) · [开发指南](docs/DEVELOPMENT.md) · [贡献指南](CONTRIBUTING.md) |
 
 Release 中的预览 APK 与此前交付的 0.1.6 使用相同证书，可覆盖更新并保留数据。**Actions 构建包使用运行环境的临时调试证书，不能保证覆盖安装 Release 版本**。日常使用请选择 Release 附件；附件的 SHA256 校验值见同页 `SHA256SUMS.txt`。
@@ -79,7 +88,8 @@ Release 中的预览 APK 与此前交付的 0.1.6 使用相同证书，可覆盖
 | 音乐模式 | 独立音轨省流、音质选择；多个本机歌单与B站收藏夹、合集／分P批量选曲；搜索、下一首、队列与四种播放模式；唱片／沉浸／简约风格、配色与歌词DIY、小播放条及后台控制 |
 | 弹幕 | 滚动/顶部/底部、透明度、区域、字号、速度、去重和屏蔽词；播放中即时调整 |
 | 离线与存储 | 实际可用画质、视频或音频选择；分段续传、暂停继续、恢复任务和合流；自动缓存限额与过期清理 |
-| 账号与平板 | 官方扫码/网页登录与断网重连恢复；关注状态、评论点赞／楼中楼／最热最新最早排序、新建收藏夹；历史、稍后再看、追番、消息入口；侧边导航、横屏双栏、全屏与分屏适配 |
+| 评论与主页 | 头像、等级、属地、表情与图片；彩色可点击提及、赞踩、指定楼中楼回复；最热／最新／最早排序、自动分页与返回位置保持；公开用户资料、关注与投稿 |
+| 账号与平板 | 官方扫码/网页登录与断网重连恢复；关注状态、新建收藏夹、历史、稍后再看、追番和消息；侧边导航、横屏双栏、全屏与分屏适配 |
 
 手机竖屏进入音乐时隐藏主导航，左上角收起或系统返回后恢复进入前的板块，音乐继续播放；平板保留导航和双栏。操作见 [0.1.9 沉浸模式](docs/RELEASE-0.1.9.md)。
 
@@ -112,13 +122,15 @@ Windows 使用 `gradlew.bat`。首次构建需要下载依赖；连接受限时�
 | 播放、音乐队列、弹幕和媒体服务 | [player/](app/src/main/java/dev/bilidesk/android/player) | [player 导览](app/src/main/java/dev/bilidesk/android/player/README.md) |
 | 下载队列、断点续传与合流 | [download/](app/src/main/java/dev/bilidesk/android/download) | [download 导览](app/src/main/java/dev/bilidesk/android/download/README.md) |
 | Compose 页面、自适应布局与手势 | [ui/](app/src/main/java/dev/bilidesk/android/ui) | [ui 导览](app/src/main/java/dev/bilidesk/android/ui/README.md) |
-| 单元测试与设备交互验证 | [JVM 测试](app/src/test/java/dev/bilidesk/android)、[设备测试方法](validation/INTERACTION_TESTS.md) | [验证记录与边界](docs/VALIDATION-0.2.0.md) |
+| 单元测试与设备交互验证 | [JVM 测试](app/src/test/java/dev/bilidesk/android)、[设备测试方法](validation/INTERACTION_TESTS.md) | [验证记录与边界](docs/VALIDATION-0.2.1.md) |
 
 欢迎提交 [Issue](https://github.com/greyzhang491/BiliDesk-Android/issues/new/choose) 或 Pull Request。新贡献请先阅读 [CONTRIBUTING](CONTRIBUTING.md)；账号或凭据泄露问题请按 [SECURITY](SECURITY.md) 私下报告。
 
 ## 验证与已知限制
 
-0.2.0 的界面、主题、导航和播放检查见 [当前验证说明](docs/VALIDATION-0.2.0.md)、[验证摘要](validation/interaction-checks-0.2.0.json) 与 [当前源码清单](validation/source-integrity-0.2.0.json)。本次界面更新和设置入口见 [使用说明](docs/RELEASE-0.2.0.md)。
+0.2.1 的评论、用户主页、滚动恢复和长按提示检查见 [当前验证说明](docs/VALIDATION-0.2.1.md)、[验证摘要](validation/interaction-checks-0.2.1.json) 与 [当前源码清单](validation/source-integrity-0.2.1.json)。本版操作见 [评论与主页说明](docs/RELEASE-0.2.1.md)。
+
+0.2.0 的界面、主题、导航和播放检查见 [该版验证说明](docs/VALIDATION-0.2.0.md)；界面设计和设置入口见 [界面更新](docs/RELEASE-0.2.0.md)。
 
 0.1.9 手机竖屏音乐默认沉浸，返回前一板块后恢复导航并继续播放。范围与边界见 [该版验证说明](docs/VALIDATION-0.1.9.md)、[验证摘要](validation/interaction-checks-0.1.9.json) 和 [该版源码清单](validation/source-integrity-0.1.9.json)；不重计旧版互动与缓存用例。
 

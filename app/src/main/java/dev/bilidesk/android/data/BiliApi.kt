@@ -213,6 +213,10 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         require(aid > 0 && comment > 0) { "评论信息不完整，请刷新评论后重试" }
         post("/x/v2/reply/action", mapOf("type" to "1", "oid" to "$aid", "rpid" to "$comment", "action" to if (like) "1" else "0"), referer = "https://www.bilibili.com/video/av$aid")
     }
+    suspend fun dislikeComment(aid: Long, comment: Long, dislike: Boolean) {
+        require(aid > 0 && comment > 0) { "评论信息不完整" }
+        post("/x/v2/reply/hate", mapOf("oid" to "$aid", "type" to "1", "rpid" to "$comment", "action" to if (dislike) "1" else "0"), referer = "https://www.bilibili.com/video/av$aid")
+    }
     suspend fun following(mid: Long): Boolean {
         require(mid > 0)
         val j = json("/x/relation", mapOf("fid" to "$mid"), referer = "https://space.bilibili.com/$mid")
@@ -293,7 +297,24 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     suspend fun uploads(mid: Long, page: Int): FeedPage {
         val j = json("/x/space/wbi/arc/search", mapOf("mid" to "$mid", "pn" to "$page", "ps" to "30", "order" to "pubdate"), sign = true, referer = "https://space.bilibili.com/$mid/")
         val videos = j.obj("list").arr("vlist").objects().map { Video.api(it).copy(duration = durationValue(it.optString("length"))) }
-        return FeedPage(videos, more = videos.size == 30)
+        val total = j.obj("page").optLong("count", -1)
+        return FeedPage(videos, more = videos.isNotEmpty() && if (total >= 0) page.toLong() * 30 < total else videos.size == 30)
+    }
+    suspend fun creatorProfile(mid: Long): CreatorProfile {
+        require(mid > 0) { "用户信息不完整" }
+        val referer = "https://space.bilibili.com/$mid/"
+        val data = try { json("/x/web-interface/card", mapOf("mid" to "$mid"), referer = referer) }
+        catch (error: ApiException) {
+            if (error.code !in setOf(-400, -403, -404, -352, 404)) throw error
+            json("/x/space/wbi/acc/info", mapOf("mid" to "$mid"), sign = true, referer = referer)
+        }
+        if ((data.optJSONObject("card") ?: data).optString("name").isBlank()) throw ApiException(-3, "用户资料暂未完整返回，请稍后重试")
+        return CreatorProfile.parse(mid, data)
+    }
+    suspend fun searchCreators(name: String): List<CreatorProfile> {
+        require(name.isNotBlank()) { "用户名不能为空" }
+        val j = json("/x/web-interface/wbi/search/type", mapOf("search_type" to "bili_user", "keyword" to name, "page" to "1", "page_size" to "20"), sign = true, referer = "https://search.bilibili.com/")
+        return j.arr("result").objects().filter { it.optLong("mid") > 0 }.map { CreatorProfile(it.optLong("mid"), it.optString("uname").clean(), it.optString("upic").https(), it.optString("usign"), it.optInt("level", -1).takeIf { n -> n in 0..6 }) }.distinctBy { it.mid }
     }
     suspend fun createQr(): Pair<String, String> {
         val j = withContext(Dispatchers.IO) { passport.newCall(request("https://passport.bilibili.com/x/passport-login/web/qrcode/generate").build()).awaitResponse().use { JSONObject(it.body?.string().orEmpty()) } }
@@ -332,7 +353,11 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     suspend fun follow(mid: Long, add: Boolean) { require(mid > 0); post("/x/relation/modify", mapOf("fid" to "$mid", "act" to if (add) "1" else "2", "re_src" to "11"), referer = "https://space.bilibili.com/$mid") }
     suspend fun report(aid: Long, cid: Long, progress: Long) { if (cookies.value("SESSDATA").isNotBlank()) post("/x/v2/history/report", mapOf("aid" to "$aid", "cid" to "$cid", "progress" to "$progress", "platform" to "android")) }
     suspend fun sendDanmaku(cid: Long, text: String, positionMs: Long) { post("/x/v2/dm/post", mapOf("type" to "1", "oid" to "$cid", "msg" to text, "progress" to "$positionMs", "color" to "16777215", "fontsize" to "25", "pool" to "0", "mode" to "1", "rnd" to "${System.currentTimeMillis() * 1000}")) }
-    suspend fun sendComment(aid: Long, text: String) { post("/x/v2/reply/add", mapOf("oid" to "$aid", "type" to "1", "message" to text, "plat" to "1")) }
+    suspend fun sendComment(aid: Long, text: String, root: Long = 0, parent: Long = 0) {
+        require(aid > 0 && text.isNotBlank() && root >= 0 && parent >= 0 && (root > 0 || parent == 0L)) { "评论信息不完整" }
+        val reply = if (root > 0) mapOf("root" to "$root", "parent" to "${parent.takeIf { it > 0 } ?: root}") else emptyMap()
+        post("/x/v2/reply/add", mapOf("oid" to "$aid", "type" to "1", "message" to text, "plat" to "1") + reply, referer = "https://www.bilibili.com/video/av$aid")
+    }
     suspend fun sendMessage(talker: Long, text: String) { post("/web_im/v1/web_im/send_msg", mapOf("msg[sender_uid]" to cookies.value("DedeUserID"), "msg[receiver_id]" to "$talker", "msg[receiver_type]" to "1", "msg[msg_type]" to "1", "msg[msg_status]" to "0", "msg[content]" to JSONObject().put("content", text).toString(), "msg[timestamp]" to "${System.currentTimeMillis() / 1000}", "msg[dev_id]" to java.util.UUID.randomUUID().toString(), "build" to "0", "mobi_app" to "web"), host = "https://api.vc.bilibili.com") }
     suspend fun sponsors(bvid: String): List<Segment> {
         if (!store.settings.value.sponsor) return emptyList()

@@ -98,7 +98,6 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
     val gestureCallback by rememberUpdatedState(onGestureActive)
     val verticalAllowed by rememberUpdatedState(fullscreen || LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
     val press = remember { PressPlaybackGesture() }
-    var heldRate by remember { mutableStateOf<Float?>(null) }
     var lockedRate by remember { mutableStateOf<Float?>(null) }
     var seekPreview by remember { mutableStateOf<Long?>(null) }
     var adjustment by remember { mutableStateOf<String?>(null) }
@@ -108,11 +107,10 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
     fun syncGesture() {
         lockedRate = press.lockedSpeed; seekPreview = press.targetPosition
         choosingLock = press.choosingLock; lockChoice = press.lockChoice
-        if (!press.active) heldRate = null
         gestureCallback(press.active)
     }
     fun apply(effect: PressEffect) { effect.speed?.let(exo::setPlaybackSpeed); effect.seekTo?.let(Graph.player::seek); syncGesture() }
-    fun resetGesture() { apply(press.reset()); heldRate = null }
+    fun resetGesture() { apply(press.reset()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(shortMode, verticalAllowed) { if (shortMode) PlayerViewHost.currentView?.hideController() }
     DisposableEffect(lifecycle, state.detail?.video?.key) {
@@ -166,7 +164,6 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
                     if (exo.isCurrentMediaItemLive || exo.mediaItemCount == 0 || adjusting != null) return
                     val s = latestSettings
                     apply(press.begin(exo.playbackParameters.speed, s.holdSpeed, s.holdSpeedEnabled && exo.isPlaying, shortMode, exo.currentPosition, exo.duration))
-                    heldRate = exo.playbackParameters.speed
                     parent?.requestDisallowInterceptTouchEvent(true)
                     performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                     hideController()
@@ -259,7 +256,7 @@ private fun PlayerView.fitDanmakuToVideo(exo: ExoPlayer, fill: Boolean) {
             }
         }
         val badge = seekPreview?.let { "${timeLabel(it / 1000)} / ${timeLabel(state.duration / 1000)} · 松手跳转" }
-            ?: adjustment ?: heldRate?.let(::speedLabel)
+            ?: adjustment
         // Text/background does not intercept the native play/pause control underneath.
         if (!choosingLock) badge?.let { Text(it, Modifier.align(Alignment.Center).padding(20.dp).background(Color.Black.copy(alpha = .75f), MaterialTheme.shapes.medium).padding(horizontal = 14.dp, vertical = 10.dp), color = Color.White, fontSize = 13.sp) }
         if (lockedRate != null && state.playing && controlsVisible && !choosingLock && !pip) {

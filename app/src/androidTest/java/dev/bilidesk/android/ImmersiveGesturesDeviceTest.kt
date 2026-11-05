@@ -76,6 +76,8 @@ class ImmersiveGesturesDeviceTest {
                 val down = SystemClock.uptimeMillis(); pointer(down, MotionEvent.ACTION_DOWN, x, y)
                 try {
                     assertTrue("Long press did not accelerate", waitFor(2500) { Graph.player.exo.playbackParameters.speed == 3f })
+                    if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
+                    assertFalse("Held speed label obstructs fullscreen", device.hasObject(By.text("3×")))
                     pointer(down, MotionEvent.ACTION_MOVE, x + w * .25f, y)
                     SystemClock.sleep(200)
                 } finally { pointer(down, MotionEvent.ACTION_UP, x + w * .25f, y) }

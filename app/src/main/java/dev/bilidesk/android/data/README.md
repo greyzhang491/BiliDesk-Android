@@ -19,3 +19,5 @@
 相关 JVM 测试：`AccountSessionTest`、`CoreTest`、`AccountWriteTest`、`MusicAndRefreshTest`。Android 的 `SessionRecoveryDeviceTest`、`AccountReconnectUiDeviceTest` 检查加密持久化、系统重连与可见账号状态。服务返回与账号操作使用模拟数据验证；真实平台验收需单独记录。
 
 评论最早排序须通过总数定位服务端末页并反向读取，不能只逆序当前页；关注关系不能把拉黑标记当成已关注。新建收藏夹出现未知写入结果时保留错误，让用户刷新确认，不能自动重放创建请求。新增模型与音质／歌词规则由 `MusicLibraryAndSocialTest` 检查。
+
+评论与主页模型见`SocialModels.kt`和`CommentContent.kt`：解析缺省字段、表情、图片与提及，保持64位ID、root／parent关系和互斥赞踩；公开账号资料不写入登录账号缓存。

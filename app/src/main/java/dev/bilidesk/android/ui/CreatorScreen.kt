@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-3.0-only
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+package dev.bilidesk.android.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import dev.bilidesk.android.Graph
+import dev.bilidesk.android.data.*
+import kotlinx.coroutines.CancellationException
+
+/** A full-window profile keeps the comments composition and its exact scroll position alive. */
+@Composable fun CreatorProfileDialog(seed: CreatorProfile, vm: AppViewModel, onDismiss: () -> Unit, onVideo: (Video) -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val snackbar = remember { SnackbarHostState() }
+        val context = LocalContext.current
+        var chosen by remember(seed.mid, seed.name) { mutableStateOf(seed.takeIf { it.mid > 0 }) }
+        LaunchedEffect(vm) { vm.notices.collect { snackbar.showSnackbar(it) } }
+        Scaffold(containerColor = MaterialTheme.colorScheme.surface, snackbarHost = { SnackbarHost(snackbar) }, topBar = {
+            TopAppBar(title = { Text(if (chosen == null) "查找 @${seed.name}" else "用户主页", fontSize = 18.sp) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭用户主页") } }, actions = {
+                chosen?.let { current -> IconButton(onClick = { browse(context, "https://space.bilibili.com/${current.mid}") }) { Icon(Icons.Default.OpenInNew, "在官方页面打开用户主页") } }
+            }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface))
+        }) { padding ->
+            val current = chosen
+            if (current == null) MentionUserLookup(seed.name, Modifier.fillMaxSize().padding(padding)) { chosen = it }
+            else key(current.mid) { CreatorScreen(current, vm, Modifier.fillMaxSize().padding(padding), onVideo) }
+        }
+    }
+}
+
+/** Nickname-only mentions need a real lookup; ambiguous names never fabricate a UID. */
+@Composable private fun MentionUserLookup(name: String, modifier: Modifier, onUser: (CreatorProfile) -> Unit) {
+    var users by remember(name) { mutableStateOf<List<CreatorProfile>?>(null) }
+    var error by remember(name) { mutableStateOf<String?>(null) }
+    var attempt by remember(name) { mutableIntStateOf(0) }
+    LaunchedEffect(name, attempt) {
+        users = null; error = null
+        try {
+            val result = Graph.api.searchCreators(name)
+            val exact = result.filter { it.name == name }
+            if (exact.size == 1) onUser(exact.single()) else users = result.sortedByDescending { it.name == name }
+        } catch (failure: Exception) { if (failure is CancellationException) throw failure; error = failure.message ?: "用户查找失败" }
+    }
+    LazyColumn(modifier, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { Text("这条评论没有提供被提及用户的UID。昵称可能重名或已更改，请核对头像和UID。", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (error != null) item { Text(error!!, color = MaterialTheme.colorScheme.error); TextButton(onClick = { attempt++ }) { Text("重试查找用户") } }
+        else if (users == null) item { CircularProgressIndicator(Modifier.size(24.dp)) }
+        else if (users!!.isEmpty()) item { Text("暂未找到这个用户，可稍后重试。", fontSize = 13.sp); TextButton(onClick = { attempt++ }) { Text("重新查找") } }
+        else items(users!!, key = { it.mid }) { user ->
+            Row(Modifier.fillMaxWidth().clickable { onUser(user) }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                UserAvatar(user.avatar, user.name, Modifier.size(48.dp))
+                Column(Modifier.weight(1f)) { Text(user.name, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium); Text("UID ${user.mid}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); if (user.sign.isNotBlank()) Text(user.sign, fontSize = 12.sp, maxLines = 2) }
+            }
+        }
+    }
+}
+
+@Composable fun CreatorScreen(seed: CreatorProfile, vm: AppViewModel, modifier: Modifier = Modifier, onVideo: (Video) -> Unit = vm::openVideo) {
+    var profile by remember(seed.mid) { mutableStateOf(seed) }
+    var loaded by remember(seed.mid) { mutableStateOf(false) }
+    var error by remember(seed.mid) { mutableStateOf<String?>(null) }
+    var attempt by remember(seed.mid) { mutableIntStateOf(0) }
+    LaunchedEffect(seed.mid, attempt) {
+        loaded = false; error = null
+        try { profile = Graph.api.creatorProfile(seed.mid).let { it.copy(avatar = it.avatar.ifBlank { seed.avatar }) } }
+        catch (failure: Exception) { if (failure is CancellationException) throw failure; error = failure.message ?: "资料暂时无法加载" }
+        finally { loaded = true }
+    }
+    RefreshableVideoFeed(modifier, onVideo, header = {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                UserAvatar(profile.avatar, profile.name, Modifier.size(68.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(profile.name, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = if (profile.vip) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { UserLevel(profile.level); if (profile.vip) UserBadge("大会员"); Text("UID ${profile.mid}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+                CreatorFollowButton(profile.mid, vm)
+            }
+            if (!loaded) LinearProgressIndicator(Modifier.fillMaxWidth())
+            error?.let { message -> Column { Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.error); TextButton(onClick = { attempt++ }) { Text("重试用户资料") } } }
+            if (profile.official.isNotBlank()) Text(profile.official, color = MaterialTheme.colorScheme.secondary, fontSize = 12.sp)
+            if (profile.sign.isNotBlank()) Text(profile.sign, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 21.sp)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                profile.fans?.let { Text("${countLabel(it)} 粉丝", fontSize = 12.sp) }
+                profile.following?.let { Text("${countLabel(it)} 关注", fontSize = 12.sp) }
+                profile.videoCount?.let { Text("${countLabel(it)} 投稿", fontSize = 12.sp) }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text("投稿视频", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }, load = { Graph.api.uploads(seed.mid, it) })
+}

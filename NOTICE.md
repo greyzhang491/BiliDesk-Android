@@ -27,6 +27,8 @@
 
 0.2.0界面改版参考了用户提供、元数据标注为`tv.danmaku.bili 7.14.1`的APK主题与尺寸资源，提炼配色、间距与内容层级。界面由本项目的Compose组件独立实现，素材使用原有授权BiliDesk形象、AndroidX Material Icons和系统字体；参考APK仅用于本地分析。文档中的`UI DEMO`封面由设备测试中的Android Canvas绘制，使用方式见[设计说明](docs/UI-DESIGN.md)。
 
+0.2.1评论截图中的头像、配图和账号资料由本项目测试代码独立生成；不使用用户提供截图中的头像或身份资料。视频区域显示的测试影片为《Big Buck Bunny》：**(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org**，采用[CC BY 3.0，官方许可说明](https://peach.blender.org/about/)。画面由播放器按窗口缩放展示，影片文件不随源码或APK分发；这些影片画面的许可不属于本项目代码的GPL许可。
+
 主要第三方依赖（各自许可仍适用）：
 
 - AndroidX / Jetpack Compose / Media3：Apache-2.0。

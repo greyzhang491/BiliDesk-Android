@@ -72,6 +72,8 @@ validation/                 # 脱敏验证摘要和源码校验清单
 
 0.1.8的`SocialModels`解析关系、评论／回复和合集数据；`AccountActions`提供有读取／错误／提交状态的关注按钮与收藏夹创建；`VideoComments`在两种视频布局共用，不持有或替换播放器。全局最早评论从服务器末页开始，点赞以rpid跟踪。新增账号写入仍复用`AccountWriteClient`，禁止自动重放和透明重定向。
 
+0.2.1将富文本／用户模型放入`CommentContent`，头像、等级、表情和原图由`CommentComponents`呈现。`VideoComments`按排序和线程持有分页及滚动状态；发表回复只失效所属线程，主列表和其他线程保持位置。`CreatorScreen`通过完整窗口Dialog显示公开资料与投稿，关闭时保留下面的评论composition；仅选择另一条投稿才切换同一个播放器。已知提及UID直接导航，昵称检索缺少可靠映射时展示候选，不从姓名猜测UID。
+
 ## 维护原则
 
 - Android 生命周期、后台服务、媒体会话和下载取消必须实际释放资源；界面离开与播放停止是不同事件。

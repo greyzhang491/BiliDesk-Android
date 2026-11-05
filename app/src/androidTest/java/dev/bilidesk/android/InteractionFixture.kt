@@ -32,7 +32,7 @@ import android.os.SystemClock
  * Push the Media3 public test sample to the app's external-files directory, then use
  * am instrument ... -e playback_fixture true ... . This does not test Bilibili networking.
  */
-class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false): AutoCloseable {
+class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false, richComments: Boolean = false): AutoCloseable {
     private val context = instrumentation.targetContext
     private val previousApi = Graph.api
     private val previousPlayer = Graph.player
@@ -48,6 +48,10 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
     private var following = true
     private val addedFolders = CopyOnWriteArrayList<JSONObject>()
     private val commentLikes = ConcurrentHashMap<Long, Boolean>()
+    private val commentDislikes = ConcurrentHashMap<Long, Boolean>()
+    private val rich = if (richComments) CommentTestData(context) { id -> if (commentLikes[id] == true) 1 else if (commentDislikes[id] == true) 2 else 0 } else null
+    @Volatile var failNextCommentRead = false
+    @Volatile var loseNextCommentWriteResponse = false
     val requestedQualities = CopyOnWriteArrayList<Int>()
     private var liked = false
     val simulatedLiked get() = liked
@@ -109,20 +113,23 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-caption").body(caption.toString().toResponseBody("application/json".toMediaType())).build()
             }
             if (request.method != "GET") {
-                check(loggedIn && path in setOf("/x/web-interface/archive/like", "/x/v3/fav/resource/deal", "/x/web-interface/coin/add", "/x/v2/history/toview/add", "/x/v2/history/report", "/x/relation/modify", "/x/v2/reply/action", "/x/v3/fav/folder/add")) { "Fixture forbids this write" }
+                check(loggedIn && path in setOf("/x/web-interface/archive/like", "/x/v3/fav/resource/deal", "/x/web-interface/coin/add", "/x/v2/history/toview/add", "/x/v2/history/report", "/x/relation/modify", "/x/v2/reply/action", "/x/v2/reply/hate", "/x/v2/reply/add", "/x/v3/fav/folder/add")) { "Fixture forbids this write" }
                 writes.getOrPut(path) { AtomicInteger() }.incrementAndGet()
                 val form = request.body as? FormBody
                 fun field(name: String) = (0 until (form?.size ?: 0)).firstOrNull { form!!.name(it) == name }?.let { form!!.value(it) }
                 writeForms[path] = (0 until (form?.size ?: 0)).associate { form!!.name(it) to form.value(it) }
                 when (path) {
                     "/x/relation/modify" -> following = field("act") == "1"
-                    "/x/v2/reply/action" -> commentLikes[field("rpid")!!.toLong()] = field("action") == "1"
+                    "/x/v2/reply/action" -> { val id = field("rpid")!!.toLong(); commentLikes[id] = field("action") == "1"; if (commentLikes[id] == true) commentDislikes[id] = false }
+                    "/x/v2/reply/hate" -> { val id = field("rpid")!!.toLong(); commentDislikes[id] = field("action") == "1"; if (commentDislikes[id] == true) commentLikes[id] = false }
                     "/x/v3/fav/folder/add" -> addedFolders.add(JSONObject().put("id", 501 + addedFolders.size).put("title", field("title")).put("fav_state", 0))
                     "/x/web-interface/archive/like" -> liked = field("like") == "1"
                     "/x/v3/fav/resource/deal" -> favorite = field("add_media_ids") != null
                     "/x/web-interface/coin/add" -> coins += field("multiply")?.toIntOrNull() ?: 0
                 }
+                if (path == "/x/v2/reply/add" && loseNextCommentWriteResponse) { loseNextCommentWriteResponse = false; throw java.io.IOException("Simulated lost reply response") }
             }
+            if (path == "/x/v2/reply/main" && failNextCommentRead) { failNextCommentRead = false; return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-error").body("""{"code":-403,"message":"模拟评论读取失败"}""".toResponseBody("application/json".toMediaType())).build() }
             val body = when (path) {
                 "/x/web-interface/nav" -> JSONObject().put("isLogin", loggedIn).put("mid", 9).put("uname", "模拟交互账号").put("wbi_img", JSONObject().put("img_url", "https://example.invalid/${"a".repeat(32)}.png").put("sub_url", "https://example.invalid/${"b".repeat(32)}.png"))
                 "/x/frontend/finger/spi" -> JSONObject().put("b_3", "fixture-only-buvid")
@@ -153,10 +160,12 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 "/x/v3/fav/folder/add" -> addedFolders.last()
                 "/x/v3/fav/folder/created/list-all" -> JSONObject().put("list", JSONArray().put(JSONObject().put("id", 500).put("title", "模拟收藏夹").put("fav_state", if (favorite) 1 else 0)).apply { addedFolders.forEach { put(it) } })
                 "/x/v3/fav/resource/list" -> JSONObject().put("has_more", false).put("medias", JSONArray().put(video(false)).put(video(true)))
-                "/x/web-interface/wbi/search/type" -> JSONObject().put("numPages", 1).put("result", JSONArray().put(video(false)).put(video(true)))
+                "/x/web-interface/wbi/search/type" -> if (rich != null && url.queryParameter("search_type") == "bili_user") rich.searchUsers() else JSONObject().put("numPages", 1).put("result", JSONArray().put(video(false)).put(video(true)))
+                "/x/web-interface/card" -> rich?.profile(url.queryParameter("mid")!!.toLong()) ?: JSONObject()
+                "/x/space/wbi/arc/search" -> rich?.uploads(url.queryParameter("mid")!!.toLong()) ?: JSONObject()
                 "/x/web-interface/archive/coins" -> JSONObject().put("multiply", coins)
-                "/x/v2/reply/main" -> JSONObject().put("cursor", JSONObject().put("next", 1).put("is_end", true).put("all_count", 45)).put("replies", JSONArray().put(comment(700, "浏览评论时视频应持续播放", root = true)))
-                "/x/v2/reply/reply" -> JSONObject().put("page", JSONObject().put("count", 1)).put("replies", JSONArray().put(comment(701, "楼中楼也不中断播放")))
+                "/x/v2/reply/main" -> rich?.main(url.queryParameter("next")) ?: JSONObject().put("cursor", JSONObject().put("next", 1).put("is_end", true).put("all_count", 45)).put("replies", JSONArray().put(comment(700, "浏览评论时视频应持续播放", root = true)))
+                "/x/v2/reply/reply" -> rich?.replies(url.queryParameter("pn")) ?: JSONObject().put("page", JSONObject().put("count", 1)).put("replies", JSONArray().put(comment(701, "楼中楼也不中断播放")))
                 "/x/v2/reply" -> JSONObject().put("page", JSONObject().put("count", 45)).put("replies", if (url.queryParameter("pn") == "3") JSONArray().put(comment(745, "最早的一条评论")) else if (url.queryParameter("pn") == "1") JSONArray().put(comment(744, "最新的一条评论")) else JSONArray())
                 else -> JSONObject().put("item", JSONArray()).put("list", JSONArray())
             }

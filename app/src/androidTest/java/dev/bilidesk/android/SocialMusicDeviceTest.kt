@@ -92,7 +92,7 @@ class SocialMusicDeviceTest {
                     assertEquals("0", fixture.writeForms["/x/v2/reply/action"]!!["action"])
                     text("查看 1 条回复").click(); text("楼中楼也不中断播放")
                     scenario.onActivity { assertSame(media, Graph.player.exo.currentMediaItem); assertTrue(Graph.player.exo.isPlaying) }
-                    text("返回评论").click(); text("按最热").click(); text("最新").click(); text("最新的一条评论")
+                    clickDescription("返回上一级评论"); text("按最热").click(); text("最新").click(); text("最新的一条评论")
                     text("按最新").click(); text("最早").click(); text("最早的一条评论")
                     assertTrue(fixture.readRequests.any { it.contains("/x/v2/reply?") && it.contains("pn=3") && it.contains("sort=0") })
                     shot("comments-oldest")
