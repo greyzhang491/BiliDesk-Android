@@ -1,0 +1,77 @@
+{
+  "version": "0.1.9",
+  "versionCode": 10,
+  "date": "2026-11-05",
+  "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+  "currentTestApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3",
+  "jvmTests": {
+    "passed": 114,
+    "failed": 0,
+    "skipped": 0,
+    "newJvmTests": 0
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 36
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 3,
+    "tabletDistinctScenarios": 3,
+    "runs": [
+      {
+        "run": "019-phone-navigation-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      },
+      {
+        "run": "019-phone-playback-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      },
+      {
+        "run": "019-phone-styles-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      },
+      {
+        "run": "019-tablet-navigation-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      },
+      {
+        "run": "019-tablet-playback-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      },
+      {
+        "run": "019-tablet-styles-final",
+        "passed": 1,
+        "apkSha256": "e981fac39280e788b54ba98ad40dfa848c4bb7a07284c27400c11adc45b5725d",
+        "testApkSha256": "c679698aa035ed4a1c42f9bc247844f0ad276ad4dc76dd865117104535a2ddc3"
+      }
+    ]
+  },
+  "coverage": [
+    "real tab entry hides main navigation only in compact portrait music home",
+    "top back and system Back restore the most recent root tab",
+    "search/library return to immersive music home; mini-player remains available",
+    "rotation restores/re-hides phone navigation and preserves tablet split layout",
+    "same media identity and continued audio through navigation; visible root-player notices",
+    "lyrics seeking, real MediaController next, background output, original video fallback",
+    "three music styles, centered bottom controls, actual audio-only reads and background fallback"
+  ],
+  "scope": "Navigation/UI update. No repeat credit for 0.1.8 social-write or download scenarios. Each final scene is isolated and linked to the actual installed APK and instrumentation APK.",
+  "platformResponses": "Offline API35 emulators with fake accounts, local interceptors, independent sample media and placeholder covers.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliNetworkingRetestPassed": false,
+  "resetVoucherUsed": false,
+  "sameUpgradeCertificateAs018": true,
+  "alignment16Kb": true
+}

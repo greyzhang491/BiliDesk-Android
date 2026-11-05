@@ -53,9 +53,9 @@ import dev.bilidesk.android.data.*
 import dev.bilidesk.android.player.*
 import kotlinx.coroutines.*
 
-@Composable fun MusicPlayerScreen(vm: AppViewModel) {
+@Composable fun MusicPlayerScreen(vm: AppViewModel, onBack: () -> Unit = { if (!vm.back()) vm.root("music") }) {
     ImmersivePlayback(true)
-    fun back() { if (!vm.back()) vm.root("music") }
+    fun back() { onBack() }
     BackHandler { back() }
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF151824)).safeDrawingPadding()) {
         val queueWidth = (maxWidth * .32f).coerceIn(260.dp, 360.dp)
@@ -100,7 +100,7 @@ import kotlinx.coroutines.*
     LaunchedEffect(playback.musicVisual) { if (pane == 2 && !playback.musicVisual && !playback.loading && playback.error == null) pane = 0 }
     DisposableEffect(engine) { onDispose { engine.setMusicVideo(false) } }
     LaunchedEffect(video?.aid, user?.mid) { if (video != null && video.aid > 0 && user != null) runCatching { Graph.api.folders(video.aid).any { it.selected } }.onSuccess { favorited = it } }
-    LaunchedEffect(Unit) { if (vm.route.value.name == "music_player") vm.notices.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) { if (vm.route.value.name == "music_player" || !embedded) vm.notices.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(playback.notice) { if (playback.music) playback.notice?.let { snackbar.showSnackbar(it); engine.clearNotice() } }
     if (showSettings) MusicAppearanceSheet { showSettings = false }
     if (save && saveTrack != null) SaveTracksDialog(listOf(saveTrack), { save = false }, { save = false; vm.notices.tryEmit("已加入歌单") })

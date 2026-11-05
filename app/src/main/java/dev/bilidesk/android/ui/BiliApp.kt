@@ -70,15 +70,17 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
     val playback by Graph.player.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val root = route.name in listOf("home", "explore", "music", "library")
+    val immersiveMusic = route.name == "music" && LocalAppWindow.current.let { it.width < 600f && it.height > it.width }
     val rail = root && LocalAppWindow.current.useRail
     val musicSplit = LocalAppWindow.current.let { it.width - (if (rail) 80f else 0f) >= 700f && it.width > it.height }
     val topScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     fun destination(name: String) { if (name == "shorts") vm.openShorts() else vm.root(name) }
     BackHandler(enabled = !root && route.name != "player") { if (!vm.back()) vm.root("home") }
-    LaunchedEffect(route.name) { if (route.name !in listOf("player", "shorts", "music_player")) vm.notices.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(route.name, immersiveMusic) { if (!immersiveMusic && route.name !in listOf("player", "shorts", "music_player")) vm.notices.collect { snackbar.showSnackbar(it) } }
     if (route.name == "music_player") { MusicPlayerScreen(vm); return }
     if (route.name == "player" || pip) { PlayerScreen(vm, onPip, pip); return }
     if (route.name == "shorts") { ShortVideoScreen(vm, onPip); return }
+    if (immersiveMusic) { MusicPlayerScreen(vm, onBack = vm::closeMusicHome); return }
     Scaffold(
         modifier = if (root) Modifier.nestedScroll(topScroll.nestedScrollConnection) else Modifier,
         containerColor = MaterialTheme.colorScheme.background,

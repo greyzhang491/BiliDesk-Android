@@ -1,6 +1,6 @@
 # 0.1.6 设备交互回归
 
-本页保留历次方法。当前版本的实际结果见[0.1.8验证记录](../docs/VALIDATION-0.1.8.md)。
+本页保留历次方法。当前版本的实际结果见[0.1.9验证记录](../docs/VALIDATION-0.1.9.md)。
 
 JVM测试与Lint不需要测试账号。真实B站播放测试默认使用测试参数指定的BV或测试源码中的公开视频；若平台返回412，应停止重复请求，不能把该运行计为通过。
 
@@ -53,3 +53,9 @@ adb shell am instrument -w -r -e playback_fixture true -e class dev.bilidesk.and
 `NewInteractionsDeviceTest`在锁定4倍后用屏幕触摸暂停、确认无锁定标记、再次触摸恢复，再恢复1.25倍。原来的`MusicModeDeviceTest`继续覆盖歌词点击跳转、搜索小播放条、后台、MediaController下一首、原视频画面、媒体项身份和平板双栏；进入歌单库的步骤按新的播放器首页更新。所有互动写请求只在测试夹具内返回，不操作真实账号。
 
 播放测试类建议分独立instrumentation进程运行，类之间对专用模拟器上的测试应用执行`am force-stop`，保留独立样片文件。`VideoTouchInput`由系统`input touchscreen swipe`生成完整轨迹，避免多个测试端Binder调用把快速移动延迟为长按；按住倍速与进度测试仍发送明确的DOWN／保持／MOVE／UP。`ShortVideoDeviceTest`失败时记录播放器状态、暂停原因与调用位置，不能通过强行恢复播放掩盖异常。
+
+## 0.1.9 手机音乐导航
+
+`MusicNavigationDeviceTest`实际从分区进入音乐，检查手机竖屏主导航隐藏，搜索／歌单返回后保持沉浸，播放器通知可见；旋转横屏后导航恢复，转回竖屏再次隐藏。实际点击播放器返回箭头与系统返回，核对原分区和随后进入的「我的」都能正确恢复、小播放条可用、曲目身份不变且音频持续解码。平板同场景保留导航并检查横屏左歌单／右播放器。
+
+本次继续运行`MusicModeDeviceTest`和`SocialMusicDeviceTest#audioSourceDoesNotLoadVideoUntilRequestedAndAppearanceIsSaved`，分别覆盖歌词／后台／媒体会话，以及三种样式、底部按钮对齐、纯音频和显式视频切换。每类独立进程，不能把这三个方法表述为重新通过全部0.1.8社交和缓存回归。

@@ -93,9 +93,11 @@ class MusicModeDeviceTest {
                     device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "music-original-video.png"))
                     scenario.onActivity { vm!!.root("music") }
                     if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
-                    assertTrue("Music root did not finish replacing the full player", device.wait(Until.hasObject(By.text("发现")), 10000))
+                    assertTrue("Returning to music home kept the original video visible", device.wait(Until.gone(By.desc("音乐原视频画面")), 10000))
+                    val tablet = instrumentation.targetContext.resources.configuration.smallestScreenWidthDp >= 600
+                    assertTrue("Music root did not finish replacing the full player", device.wait(Until.hasObject(if (tablet) By.text("发现") else By.desc("收起音乐播放器")), 10000))
                     if (android.os.Build.VERSION.SDK_INT >= 35) instrumentation.uiAutomation.clearCache()
-                    if (instrumentation.targetContext.resources.configuration.smallestScreenWidthDp >= 600) {
+                    if (tablet) {
                         device.setOrientationLeft()
                         assertTrue(waitFor { device.displayWidth > device.displayHeight })
                         val cover = device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 15000)!!

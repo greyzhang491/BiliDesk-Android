@@ -19,6 +19,7 @@ class ShortSession(val pager: VideoFeedPager, var index: Int = 0)
 
 class AppViewModel: ViewModel() {
     private val stack = mutableListOf<Route>()
+    private var musicReturn = Route()
     private val _route = MutableStateFlow(Route())
     val route = _route.asStateFlow()
     private val session = AccountSession(viewModelScope, Graph.api.cookies, { Graph.api.user() })
@@ -31,7 +32,11 @@ class AppViewModel: ViewModel() {
     private fun newShortSession(videos: List<Video>) = ShortSession(VideoFeedPager({ Graph.api.feed("推荐", it) }, videos, { it.kind == "video" }))
     init { refreshUser(); viewModelScope.launch { runCatching { Graph.api.warmUp() } } }
     fun navigate(name: String, argument: String = "", label: String = "") { stack.add(_route.value); _route.value = Route(name, argument, label) }
-    fun root(name: String) { stack.clear(); _route.value = Route(name) }
+    fun root(name: String) {
+        if (name == "music" && _route.value.name in listOf("home", "explore", "library")) musicReturn = _route.value
+        stack.clear(); _route.value = Route(name)
+    }
+    fun closeMusicHome() { stack.clear(); _route.value = musicReturn }
     fun back(): Boolean { if (stack.isEmpty()) return false; _route.value = stack.removeAt(stack.lastIndex); return true }
     fun openVideo(video: Video) { Graph.player.open(video); if (_route.value.name != "player") navigate("player") }
     fun openPlayer(fullscreen: Boolean = false) { if (Graph.player.state.value.music) { openMusicPlayer(); return }; if (Graph.player.state.value.detail != null && _route.value.name != "player") navigate("player", if (fullscreen) "fullscreen" else "") }
