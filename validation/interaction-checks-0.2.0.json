@@ -1,0 +1,137 @@
+{
+  "version": "0.2.0",
+  "versionCode": 11,
+  "date": "2026-11-05",
+  "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+  "currentTestApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685",
+  "jvmTests": {
+    "passed": 114,
+    "failed": 0,
+    "skipped": 0,
+    "newJvmTests": 0
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 36
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 9,
+    "tabletDistinctScenarios": 6,
+    "runs": [
+      {
+        "run": "020-phone-visual-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-density-final",
+        "passed": 2,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-navigation-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-playback-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-styles-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-fullscreen-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-short-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-phone-actions-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-visual-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-density-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-navigation-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-playback-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-styles-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      },
+      {
+        "run": "020-tablet-layout-final",
+        "passed": 1,
+        "apkSha256": "11f3c759bce9cee4ef5bf58490398d7425460749262e5efe4e85b3b28dfb4a22",
+        "testApkSha256": "13eebf116910ab770560b0326f1da8af25d61c6c008a34bae8b12f0c0c0a8685"
+      }
+    ]
+  },
+  "coverage": [
+    "real recommendation/hot/search/profile actions in redesigned chrome",
+    "light/dark UI screenshots and system icon appearance flags",
+    "density/column layout and persistence; phone pagination failure/retry",
+    "music root hides phone tabs; both back paths restore the previous root",
+    "lyrics, mini-player pause/resume, background and real MediaController commands",
+    "three music styles and bottom icon symmetry; actual audio-only media reads",
+    "phone fullscreen, short-video gestures and interactions; tablet fullscreen/settings"
+  ],
+  "scope": "UI refresh. Each scene runs in an isolated process and is tied to the installed application and instrumentation APK hashes. No repeat credit for old account-write or download tests.",
+  "reference": {
+    "packageMetadata": "tv.danmaku.bili 7.14.1",
+    "analysis": "AAPT theme/dimension resources and ARM64 ELF headers",
+    "referenceAppRuntimeTested": false,
+    "testHostAbi": "x86_64 without an ARM native bridge",
+    "referenceApkOrLibrariesBundled": false
+  },
+  "intermediateFindings": [
+    "Initial mini-player progress callback could divide by a duration that changed to zero; now captures a finite per-composition value. The failed candidate is excluded.",
+    "Small text now uses size-appropriate line spacing; theme icons are reapplied on focus and resume.",
+    "A parallel-run pause injection held DOWN for 1050ms and became a long press; that failure was retained, then the same APK passed the isolated full short-video scene."
+  ],
+  "platformResponses": "Offline API35 emulators with fake accounts, local interceptors, independent sample media and placeholder covers.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliNetworkingRetestPassed": false,
+  "resetVoucherUsed": false,
+  "sameUpgradeCertificateAs019": true,
+  "alignment16Kb": true
+}

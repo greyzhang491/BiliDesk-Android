@@ -25,6 +25,8 @@
 
 图标来源为上述参考提交中的原项目资源，保留上游来源说明与 GPL-3.0 许可；安卓移植版与上游作者没有官方关联。桌面图标适配参考 [Android 自适应图标说明](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)。
 
+0.2.0界面改版参考了用户提供、元数据标注为`tv.danmaku.bili 7.14.1`的APK主题与尺寸资源，提炼配色、间距与内容层级。界面由本项目的Compose组件独立实现，素材使用原有授权BiliDesk形象、AndroidX Material Icons和系统字体；参考APK仅用于本地分析。文档中的`UI DEMO`封面由设备测试中的Android Canvas绘制，使用方式见[设计说明](docs/UI-DESIGN.md)。
+
 主要第三方依赖（各自许可仍适用）：
 
 - AndroidX / Jetpack Compose / Media3：Apache-2.0。

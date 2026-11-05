@@ -18,11 +18,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
     DisposableEffect(activity, lifecycle, enabled, pip) {
         val window = activity?.window
         val decor = window?.decorView
+        val bars = if (window != null && decor != null) WindowCompat.getInsetsController(window, decor) else null
+        val lightStatus = bars?.isAppearanceLightStatusBars
+        val lightNavigation = bars?.isAppearanceLightNavigationBars
         fun apply() {
             if (window == null || decor == null || pip) return
             WindowCompat.getInsetsController(window, decor).apply {
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                if (enabled) hide(WindowInsetsCompat.Type.systemBars()) else show(WindowInsetsCompat.Type.systemBars())
+                if (enabled) {
+                    isAppearanceLightStatusBars = false; isAppearanceLightNavigationBars = false
+                    hide(WindowInsetsCompat.Type.systemBars())
+                } else show(WindowInsetsCompat.Type.systemBars())
             }
         }
         val focus = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus -> if (hasFocus) apply() }
@@ -33,7 +39,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
         onDispose {
             if (decor?.viewTreeObserver?.isAlive == true) decor.viewTreeObserver.removeOnWindowFocusChangeListener(focus)
             lifecycle.removeObserver(observer)
-            if (!pip && window != null && decor != null) WindowCompat.getInsetsController(window, decor).show(WindowInsetsCompat.Type.systemBars())
+            if (!pip && bars != null) {
+                bars.show(WindowInsetsCompat.Type.systemBars())
+                lightStatus?.let { bars.isAppearanceLightStatusBars = it }
+                lightNavigation?.let { bars.isAppearanceLightNavigationBars = it }
+            }
         }
     }
 }

@@ -3,6 +3,8 @@
 | 入口 | 责任 |
 | --- | --- |
 | [BiliApp.kt](BiliApp.kt)、[AppViewModel.kt](AppViewModel.kt) | 导航、列表、共享状态和用户动作入口 |
+| [AppChrome.kt](AppChrome.kt)、[Theme.kt](Theme.kt) | 搜索工具栏、主导航、亮暗配色与排版 |
+| [LibraryScreen.kt](LibraryScreen.kt) | 账号概览、常用入口、分组服务和共享菜单行 |
 | [PlayerScreen.kt](PlayerScreen.kt)、[PlayerSurface.kt](PlayerSurface.kt) | 普通视频页、画面、控制栏和播放器展示 |
 | [ShortVideoScreen.kt](ShortVideoScreen.kt)、[ShortVideoActions.kt](ShortVideoActions.kt)、[VideoComments.kt](VideoComments.kt) | 短视频切换、互动、评论抽屉及播放连续性 |
 | [MusicLibraryScreen.kt](MusicLibraryScreen.kt)、[MusicPlayerScreen.kt](MusicPlayerScreen.kt) | 音乐库、唱片、歌词、原视频、队列与小播放条 |
@@ -13,6 +15,8 @@
 | [AccountScreens.kt](AccountScreens.kt)、[CoinPanel.kt](CoinPanel.kt) | 登录、个人内容、关于与投币交互 |
 
 修改布局要同时考虑手机竖屏、宽横屏和平板分屏；窗口宽度与物理设备类别不能相互替代。横屏全屏使用普通播放控件，不叠加短视频竖屏互动条。评论抽屉不应停止短视频播放；切换唱片/歌词/原视频不能重建音频会话。
+
+0.2.0的视觉规范见[界面设计与维护](../../../../../../../../docs/UI-DESIGN.md)。使用系统字体与现有授权图标，新组件避免把主题颜色、导航逻辑与账号／播放服务混在一起；演示数据和封面只放在`androidTest`。
 
 手势需明确长按、横滑、上下滑和倍率锁定的优先级，左侧调亮度、右侧调音量。设置变化应立即影响绘制或播放器状态，避免仅更新滑块外观。
 

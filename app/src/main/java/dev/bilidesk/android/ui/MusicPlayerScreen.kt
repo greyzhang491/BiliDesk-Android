@@ -293,12 +293,17 @@ private fun coverColor(bitmap: Bitmap): Color = runCatching {
     val engine = Graph.player
     val state by engine.state.collectAsStateWithLifecycle()
     val video = state.detail?.video ?: return
-    Surface(Modifier.fillMaxWidth().clickable { vm.openMusicPlayer() }, color = MaterialTheme.colorScheme.surfaceVariant, tonalElevation = 2.dp) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(video.cover, null, Modifier.size(40.dp).clip(CircleShape).background(Pink.copy(alpha = .2f)), contentScale = ContentScale.Crop)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(engine.music.queue.value.current?.displayTitle ?: video.title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(video.author, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
-            IconButton(onClick = { engine.music.resume() }) { Icon(if (state.playing) Icons.Default.Pause else Icons.Default.PlayArrow, if (state.playing) "暂停音乐" else "播放音乐") }
-            IconButton(onClick = { engine.music.next() }) { Icon(Icons.Default.SkipNext, "下一首") }
+    val progress = if (state.duration > 0) (state.position.toFloat() / state.duration).coerceIn(0f, 1f) else 0f
+    Surface(Modifier.fillMaxWidth().clickable { vm.openMusicPlayer() }, color = MaterialTheme.colorScheme.surface) {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = .5.dp)
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(video.cover, null, Modifier.size(38.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentScale = ContentScale.Crop)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(engine.music.queue.value.current?.displayTitle ?: video.title, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(video.author, Modifier.padding(top = 3.dp), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
+                IconButton(onClick = { engine.music.resume() }) { Icon(if (state.playing) Icons.Default.PauseCircleOutline else Icons.Default.PlayCircleOutline, if (state.playing) "暂停音乐" else "播放音乐", Modifier.size(29.dp), tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = { engine.music.next() }) { Icon(Icons.Default.SkipNext, "下一首", Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            if (state.duration > 0) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(2.dp), color = Pink, trackColor = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }

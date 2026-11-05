@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -62,7 +63,7 @@ fun browse(context: Context, url: String) {
 }
 
 private val LocalAppWindow = staticCompositionLocalOf { AppWindow() }
-private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), Triple("shorts", "短视频", Icons.Default.SwipeVertical), Triple("explore", "分区", Icons.Default.Explore), Triple("music", "音乐", Icons.Default.MusicNote), Triple("library", "我的", Icons.Default.Person))
+private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), Triple("shorts", "短视频", Icons.Default.SmartDisplay), Triple("explore", "分区", Icons.Default.GridView), Triple("music", "音乐", Icons.Default.MusicNote), Triple("library", "我的", Icons.Default.Person))
 
 @Composable private fun BiliAppContent(vm: AppViewModel, pip: Boolean, onPip: () -> Unit) {
     val route by vm.route.collectAsStateWithLifecycle()
@@ -87,31 +88,23 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = { if (route.name != "music") {
             TopAppBar(title = {
-                if (root) Row(verticalAlignment = Alignment.CenterVertically) {
-                    BiliDeskLogo(Modifier.size(37.dp), "BiliDesk")
-                    Spacer(Modifier.width(10.dp)); Text("BiliDesk", fontWeight = FontWeight.Bold, letterSpacing = (-.6).sp)
-                    Spacer(Modifier.width(8.dp)); Text("ANDROID", fontSize = 9.sp, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else Text(route.label.ifBlank { when(route.name) { "search" -> "搜索"; "music_search" -> "搜索歌曲"; "settings" -> "设置"; "login" -> "登录 BiliDesk"; "folders" -> "我的收藏"; "downloads" -> "离线缓存"; "messages" -> "消息"; "about" -> "关于 BiliDesk"; else -> "媒体库" } }, fontSize = 19.sp)
+                if (root) RootToolbar(vm, user, library = route.name == "library")
+                else Text(route.label.ifBlank { when(route.name) { "search" -> "搜索"; "music_search" -> "搜索歌曲"; "settings" -> "设置"; "login" -> "登录 BiliDesk"; "folders" -> "我的收藏"; "downloads" -> "离线缓存"; "messages" -> "消息"; "about" -> "关于 BiliDesk"; else -> "媒体库" } }, fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }, navigationIcon = { if (!root) IconButton(onClick = { if (!vm.back()) vm.root("home") }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
-                actions = { if (root) { IconButton(onClick = { vm.navigate(if (route.name == "music") "music_search" else "search") }) { Icon(Icons.Default.Search, "搜索") }; IconButton(onClick = { vm.navigate("settings") }) { Icon(Icons.Default.Tune, "设置") } } },
-                scrollBehavior = if (root) topScroll else null,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
+                scrollBehavior = if (root) topScroll else null, expandedHeight = if (root) 56.dp else 64.dp,
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface, scrolledContainerColor = MaterialTheme.colorScheme.surface))
         } },
         bottomBar = { Column(if (root && !rail) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
             if (playback.detail != null) {
                 if (playback.music) { if (route.name != "music") MusicMiniPlayer(vm) }
                 else MiniPlayer(playback.detail!!.video, playback.playing, vm)
             }
-            if (root && !rail) NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                destinations.forEach { (name, label, icon) ->
-                    NavigationBarItem(selected = route.name == name, onClick = { destination(name) }, icon = { Icon(icon, label, Modifier.size(23.dp)) }, label = { Text(label, fontSize = 11.sp) }, colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = .13f)))
-                }
-            }
+            if (root && !rail) AppBottomNavigation(route.name, destinations, ::destination)
         } }
     ) { padding ->
         Row(Modifier.fillMaxSize().padding(padding)) {
             if (rail) NavigationRail(Modifier.fillMaxHeight(), containerColor = MaterialTheme.colorScheme.surface) {
-                destinations.forEach { (name, label, icon) -> NavigationRailItem(selected = route.name == name, onClick = { destination(name) }, icon = { Icon(icon, label) }, label = { Text(label) }, modifier = Modifier.padding(vertical = 8.dp)) }
+                destinations.forEach { (name, label, icon) -> NavigationRailItem(selected = route.name == name, onClick = { destination(name) }, icon = { Icon(navigationIcon(name, route.name == name, icon), label) }, label = { Text(label, fontSize = 11.sp) }, colors = NavigationRailItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer), modifier = Modifier.padding(vertical = 8.dp)) }
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {
             when (route.name) {
@@ -151,7 +144,6 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
 @Composable fun HomeScreen(vm: AppViewModel) {
     var tab by rememberSaveable { mutableStateOf("推荐") }
     key(tab) { VideoFeed(vm, header = {
-        if (!LocalAppWindow.current.shortHeight) Text("发现一点新喜欢", Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp), style = MaterialTheme.typography.titleLarge)
         Tabs(listOf("推荐", "热门", "排行榜", "直播", "追番"), tab) { tab = it }
     }, preferNewOnRefresh = tab in listOf("推荐", "热门"), load = { page -> when(tab) { "直播" -> Graph.api.liveList(page); "追番" -> Graph.api.bangumi(page); else -> Graph.api.feed(tab, page) } }) }
 }
@@ -166,8 +158,12 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
 }
 
 @Composable fun Tabs(tabs: List<String>, selected: String, onClick: (String) -> Unit) {
-    LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(tabs) { name -> FilterChip(selected = selected == name, onClick = { onClick(name) }, label = { Text(name, fontSize = 13.sp, fontWeight = if (selected == name) FontWeight.Bold else FontWeight.Normal) }, shape = RoundedCornerShape(12.dp), border = if (selected == name) null else FilterChipDefaults.filterChipBorder(false, false, borderColor = Color.Transparent), colors = FilterChipDefaults.filterChipColors(containerColor = Color.Transparent, selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = .15f), selectedLabelColor = MaterialTheme.colorScheme.primary)) }
+    LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(tabs) { name -> Column(Modifier.heightIn(min = 46.dp).clickable { onClick(name) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+            Text(name, fontSize = 14.sp, fontWeight = if (selected == name) FontWeight.SemiBold else FontWeight.Normal, color = if (selected == name) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Spacer(Modifier.height(9.dp))
+            Box(Modifier.width(18.dp).height(3.dp).clip(CircleShape).background(if (selected == name) Pink else Color.Transparent))
+        } }
     }
 }
 
@@ -192,7 +188,7 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     LaunchedEffect(Unit) { fetch() }
     LaunchedEffect(content.revision) { if (content.revision > 0) grid.scrollToItem(0) }
     if (displaySettings) AlertDialog(onDismissRequest = { displaySettings = false }, title = { Text("视频排列") }, text = { Column(Modifier.verticalScroll(rememberScrollState())) { FeedDisplaySettings(s, Graph.store::change) } }, confirmButton = { TextButton(onClick = { displaySettings = false }) { Text("完成") } })
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         val columns = FeedDisplayPolicy.columns(maxWidth.value, s.feedDensity, s.feedColumns)
         val nearEnd by remember(grid, columns) { derivedStateOf { FeedDisplayPolicy.nearEnd(grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1, grid.layoutInfo.totalItemsCount, columns) } }
         LaunchedEffect(nearEnd, content.nextPage, content.busy, content.error, content.more) {
@@ -204,7 +200,7 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
                     header()
                     Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${FeedDisplayPolicy.labels[s.feedDensity]} · 每行 $columns 个", Modifier.weight(1f).padding(start = 4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (onShorts != null && content.videos.any { it.kind == "video" }) IconButton(onClick = { onShorts(content.videos) }, Modifier.size(40.dp)) { Icon(Icons.Default.SwipeVertical, "竖屏连续播放", Modifier.size(20.dp)) }
+                        if (onShorts != null && content.videos.any { it.kind == "video" }) IconButton(onClick = { onShorts(content.videos) }, Modifier.size(40.dp)) { Icon(Icons.Default.SmartDisplay, "竖屏连续播放", Modifier.size(20.dp)) }
                         IconButton(onClick = { displaySettings = true }, Modifier.size(40.dp)) { Icon(Icons.Default.GridView, "调整视频排列", Modifier.size(20.dp)) }
                         IconButton(onClick = { fetch(true) }, Modifier.size(40.dp), enabled = !content.busy) { Icon(Icons.Default.Refresh, "刷新视频列表", Modifier.size(20.dp)) }
                     }
@@ -226,17 +222,20 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
 }
 
 @Composable fun VideoCard(video: Video, density: Int = 1, onClick: () -> Unit) {
-    Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+    Column(Modifier.clip(RoundedCornerShape(7.dp)).clickable(onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(video.cover, video.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .75f)), startY = 90f)))
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(30.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .62f)))))
             Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically) { Icon(if (video.kind == "live") Icons.Default.Sensors else Icons.Default.PlayCircleOutline, null, Modifier.size(13.dp), Color.White); Text(" ${countLabel(video.plays)}", color = Color.White, fontSize = 10.sp) }
-                Text(if (video.kind == "live") "直播中" else if (video.kind == "season") video.subtitle else timeLabel(video.duration), color = Color.White, fontSize = 10.sp)
+                Text(if (video.kind == "live") "直播中" else if (video.kind == "season") video.subtitle else timeLabel(video.duration), Modifier.clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = .28f)).padding(horizontal = 3.dp, vertical = 1.dp), color = Color.White, fontSize = 10.sp)
             }
         }
-        Text(video.title, Modifier.padding(top = if (density == 0) 8.dp else 5.dp, start = 1.dp, end = 1.dp).heightIn(min = if (density == 2) 30.dp else 34.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = if (density == 2) 12.sp else 13.sp, lineHeight = if (density == 2) 16.sp else 18.sp, fontWeight = FontWeight.Medium)
-        Text(video.author.ifBlank { if (video.kind == "season") "番剧" else "哔哩哔哩" }, Modifier.padding(top = 3.dp, start = 1.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp)
+        Text(video.title, Modifier.padding(top = if (density == 0) 8.dp else 6.dp, start = 1.dp, end = 1.dp).heightIn(min = if (density == 2) 32.dp else 36.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = if (density == 0) 14.sp else if (density == 2) 12.sp else 13.sp, lineHeight = if (density == 2) 17.sp else 19.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
+        Row(Modifier.padding(top = 4.dp, start = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(16.dp, 11.dp).border(.7.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .65f), RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) { Text("UP", fontSize = 6.sp, lineHeight = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(video.author.ifBlank { if (video.kind == "season") "番剧" else "哔哩哔哩" }, Modifier.padding(start = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp)
+        }
     }
 }
 
@@ -264,54 +263,6 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     }
 }
 
-@Composable fun LibraryScreen(vm: AppViewModel, user: User?) {
-    val account by vm.account.collectAsStateWithLifecycle()
-    val caches by Graph.store.caches.collectAsStateWithLifecycle()
-    val history by Graph.store.history.collectAsStateWithLifecycle()
-    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
-                Row(Modifier.fillMaxWidth().clickable { if (user == null) vm.requireLogin {} else if (!account.checking) vm.retryAccount() }.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (user != null) AsyncImage(user.avatar, "头像", Modifier.size(58.dp).clip(RoundedCornerShape(18.dp))) else Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .13f)) { Icon(Icons.Default.PersonOutline, null, Modifier.padding(14.dp).size(30.dp), tint = MaterialTheme.colorScheme.primary) }
-                    Column(Modifier.weight(1f).padding(start = 15.dp)) {
-                        Text(user?.name ?: "登录，接上你的热爱", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                        Text(account.message ?: if (user == null) "同步收藏和观看记录" else "LV ${user.level}  ·  UID ${user.mid}${if (user.vip) "  ·  大会员" else ""}", Modifier.padding(top = 6.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (account.status in setOf(AccountStatus.RETRY_PENDING, AccountStatus.STORAGE_UNAVAILABLE)) TextButton(onClick = { vm.retryAccount() }, contentPadding = PaddingValues(0.dp)) { Text("重试同步", fontSize = 11.sp) }
-                    }
-                    if (user == null) Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LibraryTile(Icons.Default.FavoriteBorder, "收藏", "账号收藏夹", Modifier.weight(1f)) { vm.requireLogin { vm.navigate("folders") } }
-                LibraryTile(Icons.Default.History, "历史", "${history.size} 条本地记录", Modifier.weight(1f)) { vm.navigate("feed", "localHistory", "观看历史") }
-                LibraryTile(Icons.Default.DownloadForOffline, "缓存", "${caches.size} 个视频", Modifier.weight(1f)) { vm.navigate("downloads") }
-            }
-        }
-        item {
-            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) { Column {
-                MenuRow(Icons.Default.WatchLater, "稍后再看", "把想看的先收好") { vm.requireLogin { vm.navigate("feed", "later", "稍后再看") } }
-                MenuRow(Icons.Default.Movie, "我的追番", "继续未完的故事") { vm.requireLogin { vm.navigate("feed", "myBangumi", "我的追番") } }
-                MenuRow(Icons.Default.NotificationsNone, "消息", "回复、点赞、@我与私信") { vm.requireLogin { vm.navigate("messages") } }
-                MenuRow(Icons.Default.Settings, "设置", "播放、弹幕和外观") { vm.navigate("settings") }
-                MenuRow(Icons.Default.Info, "关于 BiliDesk", "开源与致谢") { vm.navigate("about") }
-            } }
-        }
-        item { Text("把时间，留给喜欢。", Modifier.fillMaxWidth().padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f), fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-    }
-}
-
-@Composable fun LibraryTile(icon: ImageVector, title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
-    Surface(modifier.clickable(onClick = onClick), color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) { Column(Modifier.padding(horizontal = 10.dp, vertical = 17.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(25.dp)); Text(title, Modifier.padding(top = 10.dp), fontWeight = FontWeight.SemiBold, fontSize = 13.sp); Text(subtitle, Modifier.padding(top = 5.dp), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } }
-}
-@Composable fun MenuRow(icon: ImageVector, title: String, subtitle: String = "", onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 17.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) { Text(title, fontSize = 14.sp); if (subtitle.isNotBlank()) Text(subtitle, Modifier.padding(top = 4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Icon(Icons.Default.ChevronRight, null, Modifier.size(19.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
 @Composable fun LoginGate(vm: AppViewModel, text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Column(Modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PersonOutline, null, Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary); Text(text, Modifier.padding(vertical = 22.dp), fontSize = 14.sp); Button(onClick = { vm.navigate("login") }) { Text("登录哔哩哔哩") } } }
 }
