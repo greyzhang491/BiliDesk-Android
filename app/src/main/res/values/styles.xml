@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.BiliDesk" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#0D1118</item>
+        <item name="android:colorAccent">#F57E9D</item>
+    </style>
+</resources>

@@ -1,0 +1,6 @@
+# Preserve the exact source bytes from the tested preview delivery.
+* -text
+gradlew text eol=lf
+*.png binary
+*.jar binary
+*.pdf binary

@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: GPL-3.0-only
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+package dev.bilidesk.android
+
+import android.app.Instrumentation
+import android.content.Intent
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import dev.bilidesk.android.data.*
+import dev.bilidesk.android.player.PlaybackService
+import dev.bilidesk.android.player.PlayerEngine
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CopyOnWriteArrayList
+import dev.bilidesk.android.download.Downloads
+import okio.Buffer
+import okio.BufferedSource
+import okio.Source
+import okio.Timeout
+import okio.buffer
+import okio.source
+import android.os.SystemClock
+
+/** Explicit opt-in offline transport. No mock interceptor or media is part of the app APK.
+ * Push the Media3 public test sample to the app's external-files directory, then use
+ * am instrument ... -e playback_fixture true ... . This does not test Bilibili networking.
+ */
+class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false): AutoCloseable {
+    private val context = instrumentation.targetContext
+    private val previousApi = Graph.api
+    private val previousPlayer = Graph.player
+    private val previousDownloads = Graph.downloads
+    val downloadOffsets = CopyOnWriteArrayList<Long>()
+    @Volatile var slowDownloads = true
+    private val cookies = SecureCookies(context, "interaction_fixture_session")
+    private val sample = File(context.getExternalFilesDir(null), "interaction-sample.mp4")
+    private val duration: Long
+    private val musicSample: MusicTestMedia?
+    val requestedQualities = CopyOnWriteArrayList<Int>()
+    private var liked = false
+    val simulatedLiked get() = liked
+    private var favorite = false
+    private var coins = 0
+    private val writes = ConcurrentHashMap<String, AtomicInteger>()
+    fun writeCount(path: String) = writes[path]?.get() ?: 0
+    init {
+        check(sample.isFile) { "Push interaction-sample.mp4 before running fixture tests" }
+        val metadata = MediaMetadataRetriever()
+        val originalDuration: Long
+        try { metadata.setDataSource(sample.path); originalDuration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong() }
+        finally { metadata.release() }
+        check(originalDuration > 60000) { "Interaction sample must be longer than one minute" }
+        musicSample = if (musicMedia) MusicTestMedia(sample, context.getExternalFilesDir(null)!!) else null
+        duration = musicSample?.durationMs ?: originalDuration
+        context.getSharedPreferences("fixture_music", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("fixture_music_position", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        cookies.clear()
+        if (loggedIn) cookies.putLogin(mapOf("SESSDATA" to "fixture-session-only", "bili_jct" to "fixture-csrf-only", "DedeUserID" to "9"))
+        instrumentation.runOnMainSync { previousPlayer.stop(); context.stopService(Intent(context, PlaybackService::class.java)) }
+        instrumentation.waitForIdleSync()
+        val client = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES).addInterceptor { chain ->
+            val request = chain.request()
+            val url = request.url
+            if (downloadMedia && url.host == "fixture.invalid") {
+                val payload = if (musicSample != null) (if (url.encodedPath.contains("audio")) musicSample.audio else musicSample.video) else sample
+                val range = Regex("bytes=(\\d+)-(\\d+)").matchEntire(request.header("Range").orEmpty())!!
+                val start = range.groupValues[1].toLong(); val end = minOf(range.groupValues[2].toLong(), payload.length() - 1)
+                downloadOffsets.add(start)
+                val input = payload.inputStream(); check(input.skip(start) == start)
+                val source = input.source()
+                val body = object: ResponseBody() {
+                    private val buffered = object: Source {
+                        var remaining = end - start + 1
+                        override fun read(sink: Buffer, byteCount: Long): Long {
+                            if (remaining <= 0) return -1
+                            if (slowDownloads) SystemClock.sleep(8)
+                            val count = source.read(sink, minOf(byteCount, remaining))
+                            if (count > 0) remaining -= count
+                            return count
+                        }
+                        override fun timeout() = Timeout.NONE
+                        override fun close() = source.close()
+                    }.buffer()
+                    override fun contentType() = "video/mp4".toMediaType()
+                    override fun contentLength() = end - start + 1
+                    override fun source(): BufferedSource = buffered
+                }
+                return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(206).message("fixture-media")
+                    .header("Content-Range", "bytes $start-$end/${payload.length()}").header("ETag", "\"fixture-media-v1\"").body(body).build()
+            }
+            val second = url.queryParameter("bvid") == "BV17x411w7KC"
+            val path = url.encodedPath
+            if (path == "/fixture-lyrics.json") {
+                val caption = JSONObject().put("body", JSONArray().put(JSONObject().put("from", 0).put("to", 8).put("content", "第一句字幕歌词")).put(JSONObject().put("from", 8).put("to", 16).put("content", "第二句字幕歌词")).put(JSONObject().put("from", 16).put("to", 45).put("content", "第三句字幕歌词")))
+                return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-caption").body(caption.toString().toResponseBody("application/json".toMediaType())).build()
+            }
+            if (request.method != "GET") {
+                check(loggedIn && path in setOf("/x/web-interface/archive/like", "/x/v3/fav/resource/deal", "/x/web-interface/coin/add", "/x/v2/history/toview/add", "/x/v2/history/report")) { "Fixture forbids this write" }
+                writes.getOrPut(path) { AtomicInteger() }.incrementAndGet()
+                val form = request.body as? FormBody
+                fun field(name: String) = (0 until (form?.size ?: 0)).firstOrNull { form!!.name(it) == name }?.let { form!!.value(it) }
+                when (path) {
+                    "/x/web-interface/archive/like" -> liked = field("like") == "1"
+                    "/x/v3/fav/resource/deal" -> favorite = field("add_media_ids") != null
+                    "/x/web-interface/coin/add" -> coins += field("multiply")?.toIntOrNull() ?: 0
+                }
+            }
+            val body = when (path) {
+                "/x/web-interface/nav" -> JSONObject().put("isLogin", loggedIn).put("mid", 9).put("uname", "模拟交互账号").put("wbi_img", JSONObject().put("img_url", "https://example.invalid/${"a".repeat(32)}.png").put("sub_url", "https://example.invalid/${"b".repeat(32)}.png"))
+                "/x/frontend/finger/spi" -> JSONObject().put("b_3", "fixture-only-buvid")
+                "/x/web-interface/view" -> video(second).put("desc", "仅用于交互回归的独立样片，不是B站内容响应").put("pages", JSONArray().put(JSONObject().put("cid", if (second) 102 else 101).put("part", "测试样片").put("duration", duration / 1000)))
+                "/x/player/wbi/playurl" -> {
+                    requestedQualities.add(url.queryParameter("qn")?.toIntOrNull() ?: 0)
+                    if (musicSample == null) JSONObject().put("timelength", duration).put("dash", JSONObject().put("video", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/sample.mp4" else Uri.fromFile(sample).toString()).put("id", 32).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000))).put("quality", 32))
+                    else JSONObject().put("timelength", duration).put("dash", JSONObject()
+                        .put("video", JSONArray(listOf(32, 64).map { q -> JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/video-$q.mp4" else Uri.fromFile(musicSample.video).toString()).put("id", q).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000) }))
+                        .put("audio", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/audio.m4a" else Uri.fromFile(musicSample.audio).toString()).put("id", 30280).put("codecs", "mp4a.40.2").put("mimeType", "audio/mp4").put("bandwidth", 128000))))
+                }
+                "/x/player/wbi/v2" -> JSONObject().put("subtitle", JSONObject().put("subtitles", if (musicMedia && !second) JSONArray().put(JSONObject().put("lan", "zh-CN").put("subtitle_url", "https://aisubtitle.hdslb.com/fixture-lyrics.json")) else JSONArray()))
+                "/x/web-interface/archive/related" -> JSONArray().put(video(false)).put(video(true))
+                "/x/web-interface/archive/has/like" -> if (liked) 1 else 0
+                "/x/v3/fav/folder/created/list-all" -> JSONObject().put("list", JSONArray().put(JSONObject().put("id", 500).put("title", "模拟收藏夹").put("fav_state", if (favorite) 1 else 0)))
+                "/x/v3/fav/resource/list" -> JSONObject().put("has_more", false).put("medias", JSONArray().put(video(false)).put(video(true)))
+                "/x/web-interface/wbi/search/type" -> JSONObject().put("numPages", 1).put("result", JSONArray().put(video(false)).put(video(true)))
+                "/x/web-interface/archive/coins" -> JSONObject().put("multiply", coins)
+                "/x/v2/reply" -> JSONObject().put("replies", if (url.queryParameter("pn") == "1") JSONArray().put(JSONObject().put("member", JSONObject().put("uname", "评论回归样例")).put("content", JSONObject().put("message", "浏览评论时视频应持续播放")).put("like", 3)) else JSONArray())
+                else -> JSONObject().put("item", JSONArray()).put("list", JSONArray())
+            }
+            val responseBody = if (path == "/x/v2/dm/web/seg.so") danmaku().toResponseBody("application/octet-stream".toMediaType())
+                else JSONObject().put("code", 0).put("data", body).toString().toResponseBody("application/json".toMediaType())
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture").body(responseBody).build()
+        }.build()
+        instrumentation.runOnMainSync { Graph.api = BiliApi(cookies, Graph.store, client); Graph.player = PlayerEngine(context, Graph.api, Graph.store, "fixture_music"); if (downloadMedia) Graph.downloads = Downloads(context, Graph.api, Graph.store) }
+    }
+    private fun video(second: Boolean) = JSONObject().put("bvid", if (second) "BV17x411w7KC" else "BV156xx6wEff").put("aid", if (second) 170001 else 100001)
+        .put("pic", musicSample?.let { Uri.fromFile(if (second) it.coverB else it.coverA).toString() }.orEmpty())
+        .put("title", if (second) "交互测试样片 B" else "交互测试样片 A").put("duration", duration / 1000)
+        .put("owner", JSONObject().put("name", "独立设备回归样片")).put("stat", JSONObject().put("view", 12).put("danmaku", 40))
+    private fun danmaku(): ByteArray {
+        fun varint(n: Long): ByteArray { var v = n; val out = ByteArrayOutputStream(); do { val bits = (v and 127).toInt(); v = v ushr 7; out.write(bits or if (v > 0) 128 else 0) } while (v > 0); return out.toByteArray() }
+        fun integer(field: Int, n: Long) = varint((field * 8).toLong()) + varint(n)
+        val result = ByteArrayOutputStream()
+        for (i in 0..100) {
+            val text = "测试弹幕 $i".toByteArray()
+            val element = integer(2, i * 500L) + integer(3, 1) + integer(5, 0xffffff) + varint(58) + varint(text.size.toLong()) + text
+            result.write(varint(10)); result.write(varint(element.size.toLong())); result.write(element)
+        }
+        return result.toByteArray()
+    }
+    override fun close() {
+        instrumentation.runOnMainSync { Graph.player.stop(); context.stopService(Intent(context, PlaybackService::class.java)); if (downloadMedia) { Graph.downloads.close(); context.stopService(Intent(context, dev.bilidesk.android.download.CacheDownloadService::class.java)) } }
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync { Graph.player.release(); Graph.player = previousPlayer; Graph.api = previousApi; if (downloadMedia) Graph.downloads = previousDownloads }
+        cookies.clear()
+    }
+}

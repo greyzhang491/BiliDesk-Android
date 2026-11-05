@@ -1,0 +1,41 @@
+name: 问题反馈
+description: 报告播放、音乐、缓存、布局等问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: 请勿填写密码、Cookie、令牌、有效登录二维码或其他个人敏感信息。
+  - type: input
+    id: version
+    attributes:
+      label: 软件版本与来源
+      placeholder: 例如 0.1.6 Preview，Releases安装包
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备型号与安卓版本
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从哪个页面开始、点了什么、期望和实际结果是什么？
+    validations:
+      required: true
+  - type: input
+    id: video
+    attributes:
+      label: 相关BV号或公开视频链接
+  - type: textarea
+    id: error
+    attributes:
+      label: 完整错误提示与截图
+      description: 上传前请去掉账号凭据和个人数据。
+  - type: textarea
+    id: official
+    attributes:
+      label: 官方客户端对照与补充信息
+      description: 若方便，请说明官方B站能否完成同一操作。

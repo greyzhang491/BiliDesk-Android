@@ -1,0 +1,111 @@
+{
+  "version": "0.1.6",
+  "versionCode": 7,
+  "date": "2026-11-04",
+  "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44",
+  "jvmTests": {
+    "failed": 0,
+    "passed": 78,
+    "newMusicAndRefreshTests": 19
+  },
+  "lint": {
+    "warnings": 31,
+    "errors": 0
+  },
+  "deviceTests": {
+    "aggregation": "Last successful run per distinct scenario/profile on the same verified APK; this public tree includes the summary and methodology. Raw logs remain in the original delivered source archive.",
+    "runs": [
+      {
+        "run": "device-phone-music-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-cache-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-new-verified-0.1.6",
+        "passed": 2,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-short-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-immersive-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-actions-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-feed-verified-0.1.6",
+        "passed": 3,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-phone-recovery-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-tablet-music-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-tablet-new-verified-0.1.6",
+        "passed": 2,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-tablet-playback-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      },
+      {
+        "run": "device-tablet-short-verified-0.1.6",
+        "passed": 1,
+        "apkSha256": "f0617979fa7156a616583d33d6c9379aca10bde806d8e741a767b2c3f3895b44"
+      }
+    ],
+    "phonePassed": 11,
+    "tabletPassed": 5
+  },
+  "environment": "Android 15 x86_64 isolated AVDs: phone 1080x1920/420dpi; tablet 1600x2560/320dpi",
+  "music": {
+    "lyricsSeek": true,
+    "backgroundAudio": true,
+    "originalVideoDecoded": true,
+    "actualAudioDecoded": true,
+    "systemNextCommand": true,
+    "miniPlayer": true,
+    "favoritePlaylist": true,
+    "tabletSplit": true,
+    "actualBilibiliLyricsTested": false,
+    "mediaItemPreserved": true
+  },
+  "cache": {
+    "mockQualityDoesNotChangeSampleResolution": true,
+    "pauseResumeAndPersistence": true,
+    "chosenQualityParameter": true,
+    "offlineAudioAndVideoDecoded": true,
+    "separateAudioAndVideoFiles": true,
+    "actualTracksChecked": true,
+    "realCdnTested": false
+  },
+  "sources": "independent Media3 Big Buck Bunny sample; locally injected platform responses; fake account writes intercepted locally; no fixture in main APK",
+  "actualBilibiliNetworkRetestPassed": false,
+  "actualAccountWritesTested": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "sameUpgradeCertificate": true,
+  "alignment16Kb": true
+}
