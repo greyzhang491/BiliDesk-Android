@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class Route(val name: String = "home", val argument: String = "", val label: String = "")
+data class CreatorRequest(val seed: CreatorProfile, val current: Video? = null)
 class ShortSession(val pager: VideoFeedPager, var index: Int = 0)
 
 class AppViewModel: ViewModel() {
@@ -27,8 +28,22 @@ class AppViewModel: ViewModel() {
     val user = account.map { it.user }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.user)
     val notices = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val refreshing = account.map { it.checking }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.checking)
-    var shortSession = newShortSession(emptyList())
-        private set
+    private val _creator = MutableStateFlow<CreatorRequest?>(null)
+    val creator = _creator.asStateFlow()
+    fun openCreator(video: Video) { if (video.mid > 0) _creator.value = CreatorRequest(CreatorProfile(video.mid, video.author, video.authorAvatar), video) }
+    fun openCreator(profile: CreatorProfile) { if (profile.mid > 0) _creator.value = CreatorRequest(profile, Graph.player.state.value.detail?.video?.takeIf { it.mid == profile.mid }) }
+    fun closeCreator() { _creator.value = null }
+    private val _shortSessions = MutableStateFlow(newShortSession(emptyList()))
+    val shortSessions = _shortSessions.asStateFlow()
+    val shortSession get() = _shortSessions.value
+    val networkEpoch = MutableStateFlow(0)
+    fun playCreatorVideo(video: Video, visible: List<Video>, nextPage: Int, keyword: String) {
+        closeCreator()
+        if (_route.value.name == "shorts") {
+            val videos = visible.filter { it.kind == "video" }.distinctBy { it.key }
+            _shortSessions.value = ShortSession(VideoFeedPager({ Graph.api.uploads(video.mid, it, keyword) }, videos, { it.kind == "video" }, initialPage = nextPage), videos.indexOfFirst { it.key == video.key }.coerceAtLeast(0))
+        } else if (_route.value.name.startsWith("music")) playMusic(video) else openVideo(video)
+    }
     private fun newShortSession(videos: List<Video>) = ShortSession(VideoFeedPager({ Graph.api.feed("推荐", it) }, videos, { it.kind == "video" }))
     init { refreshUser(); viewModelScope.launch { runCatching { Graph.api.warmUp() } } }
     fun navigate(name: String, argument: String = "", label: String = "") { stack.add(_route.value); _route.value = Route(name, argument, label) }
@@ -48,7 +63,7 @@ class AppViewModel: ViewModel() {
         openMusicPlayer()
     }
     fun openShorts(seed: Video? = null, queue: List<Video> = emptyList()) {
-        if (seed != null || queue.isNotEmpty()) shortSession = newShortSession(listOfNotNull(seed) + queue)
+        if (seed != null || queue.isNotEmpty()) _shortSessions.value = newShortSession(listOfNotNull(seed) + queue)
         if (_route.value.name != "shorts") navigate("shorts")
     }
     fun openCache(cache: CacheEntry) { Graph.player.playCache(cache); if (cache.type == "audio") openMusicPlayer() else navigate("player") }
@@ -61,7 +76,7 @@ class AppViewModel: ViewModel() {
         session.refresh(onVerified = onSuccess)
     }
     fun retryAccount() { session.refresh(force = true) }
-    fun onNetworkRecovered() { session.refresh(restartRunning = true) }
+    fun onNetworkRecovered() { session.refresh(restartRunning = true); networkEpoch.value++; Graph.player.onNetworkRecovered() }
     fun loggedIn() {
         session.refresh(force = true, restartRunning = true) { notices.tryEmit("登录成功") }
         if (account.value.canUseAccount && _route.value.name == "login") back()

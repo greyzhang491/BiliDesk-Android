@@ -1,0 +1,116 @@
+{
+  "version": "0.2.2",
+  "versionCode": 13,
+  "date": "2026-11-06",
+  "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+  "currentTestApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10",
+  "jvmTests": {
+    "passed": 139,
+    "failed": 0,
+    "skipped": 0,
+    "newJvmTests": 17
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 38
+  },
+  "deviceTests": {
+    "phoneDistinctScenarios": 11,
+    "tabletDistinctScenarios": 9,
+    "runs": [
+      {
+        "run": "022-phone-new-final",
+        "passed": 7,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-phone-short-comments-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-phone-short-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-phone-music-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-phone-real-network-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-tablet-new-final",
+        "passed": 7,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-tablet-short-comments-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      },
+      {
+        "run": "022-tablet-layout-final",
+        "passed": 1,
+        "apkSha256": "2586d565989ef9bd90fd41457a53fdf8aa18652311d27cce1e75d2795399915d",
+        "testApkSha256": "c2b087bba1f1201711e0d5a5adcf6f572575652ef2af1ae3bbaa5b28525f2a10"
+      }
+    ]
+  },
+  "controlledMediaMetrics": {
+    "phone": {
+      "controlledStartupMs": 2264,
+      "independentAudioVideoFailover": true,
+      "seeksMs": [
+        65000,
+        12000,
+        82000
+      ],
+      "pausedReconnectAtMs": 50000,
+      "physicalNetworkBenchmark": false
+    },
+    "tablet": {
+      "controlledStartupMs": 2328,
+      "independentAudioVideoFailover": true,
+      "seeksMs": [
+        65000,
+        12000,
+        82000
+      ],
+      "pausedReconnectAtMs": 50000,
+      "physicalNetworkBenchmark": false
+    }
+  },
+  "coverage": [
+    "real SegmentBase/SIDX parsing and A/V decoding",
+    "adaptive downshift under controlled 25KB/s-per-source transfer",
+    "independent audio/video byte-exact failover and distant seeks; disconnected playback recovers paused",
+    "audio-only requests no video; picture toggle retains primary MediaItem",
+    "author avatars/fans; scoped search and exact current-video lookup",
+    "creator selection stays in shorts with scoped pagination, including non-first items and queue replacement",
+    "my following entry, confirmed relation update and normal-video selection while music plays in background",
+    "short comment/reply preservation, landscape gestures, short actions and music queue/session"
+  ],
+  "platformResponses": "API35 phone/tablet emulators; all account responses/writes use local interceptors. The separate anonymous real-network scenario reads public Bilibili video and media only.",
+  "scope": "Only successful isolated runs on this final application SHA; each instrumentation binary is retained by its SHA. Controlled transfers do not benchmark DNS/TLS/carriers or official-app parity.",
+  "realAccountWrites": false,
+  "realCoinsSpent": 0,
+  "physicalK60OrPad6Tested": false,
+  "realBilibiliNetworkingRetestPassed": true,
+  "realNetworkScenario": "anonymous public A/V decode and 30-second seek on phone emulator",
+  "officialAppComparisonPerformed": false,
+  "physicalWifiOrMobileBenchmarkPerformed": false,
+  "sameUpgradeCertificateAs021": true,
+  "alignment16Kb": true
+}

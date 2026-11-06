@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -34,8 +35,9 @@ import dev.bilidesk.android.data.*
 import kotlinx.coroutines.*
 
 @Composable fun ShortVideoScreen(vm: AppViewModel, onPip: () -> Unit) {
-    val session = vm.shortSession
-    val feed by session.pager.state.collectAsStateWithLifecycle()
+    val session by vm.shortSessions.collectAsStateWithLifecycle()
+    val creator by vm.creator.collectAsStateWithLifecycle()
+    val feed by key(session) { session.pager.state.collectAsStateWithLifecycle() }
     val state by Graph.player.state.collectAsStateWithLifecycle()
     val s by Graph.store.settings.collectAsStateWithLifecycle()
     val user by vm.user.collectAsStateWithLifecycle()
@@ -44,8 +46,9 @@ import kotlinx.coroutines.*
     val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var orientationBefore by rememberSaveable { mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) }
     var ownsOrientation by rememberSaveable { mutableStateOf(false) }
-    val pager = rememberPagerState(initialPage = session.index.coerceIn(0, (feed.videos.size - 1).coerceAtLeast(0)), pageCount = { feed.videos.size.coerceAtLeast(1) })
+    val pager = key(session) { rememberPagerState(initialPage = session.index.coerceIn(0, (feed.videos.size - 1).coerceAtLeast(0)), pageCount = { feed.videos.size.coerceAtLeast(1) }) }
     var menu by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(session) { menu = null }
     var fill by rememberSaveable { mutableStateOf(false) }
     var held by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(false) }
@@ -66,17 +69,17 @@ import kotlinx.coroutines.*
     DisposableEffect(activity) { onDispose { if (ownsOrientation && activity?.isChangingConfigurations == false) activity.requestedOrientation = orientationBefore } }
     fun back() { when { menu != null -> menu = null; ownsOrientation && landscape -> followRotation(); else -> if (!vm.back()) vm.root("home") } }
     BackHandler { back() }
-    LaunchedEffect(Unit) { if (feed.videos.isEmpty()) session.pager.load() }
+    LaunchedEffect(session) { if (feed.videos.isEmpty()) session.pager.load() }
     val selected = feed.videos.getOrNull(pager.settledPage)
     val activeVideo = state.detail?.video?.takeIf { selected != null && (it.key == selected.key || it.aid > 0 && it.aid == selected.aid) }
     val actions = remember(activeVideo?.key, user?.mid) { activeVideo?.let { ShortEngagement(Graph.api, it, scope) { notice -> vm.notices.tryEmit(notice) } } }
     LaunchedEffect(actions, user?.mid) { if (user != null) actions?.load() }
     fun favorites() { vm.requireLogin { menu = "favorites"; actions?.loadFolders() } }
-    LaunchedEffect(selected?.key, pager.settledPage) {
+    LaunchedEffect(session, selected?.key, pager.settledPage) {
         session.index = pager.settledPage
         selected?.let { Graph.player.open(it) }
     }
-    LaunchedEffect(pager.settledPage, feed.videos.size, feed.busy, feed.error) {
+    LaunchedEffect(session, pager.settledPage, feed.videos.size, feed.busy, feed.error) {
         if (feed.videos.isNotEmpty() && pager.settledPage >= feed.videos.size - 3 && feed.more && !feed.busy && feed.error == null) session.pager.load()
     }
     DisposableEffect(Unit) {
@@ -84,9 +87,9 @@ import kotlinx.coroutines.*
         Graph.player.exo.addListener(listener)
         onDispose { Graph.player.exo.removeListener(listener) }
     }
-    LaunchedEffect(ended) {
+    LaunchedEffect(session, ended) {
         if (ended == 0 || Graph.player.exo.playbackState != Player.STATE_ENDED) return@LaunchedEffect
-        if (s.shortsAutoNext && menu == null && !held && !pager.isScrollInProgress) {
+        if (s.shortsAutoNext && creator == null && menu == null && !held && !pager.isScrollInProgress) {
             if (pager.settledPage + 1 >= feed.videos.size && feed.more && feed.error == null) session.pager.load()
             if (pager.settledPage + 1 < session.pager.state.value.videos.size) { pager.animateScrollToPage(pager.settledPage + 1); return@LaunchedEffect }
         }
@@ -100,7 +103,7 @@ import kotlinx.coroutines.*
                 TextButton(onClick = { scope.launch { session.pager.load(true) } }) { Text("重新加载") }
                 TextButton(onClick = ::back) { Text("返回") }
             }
-        } else VerticalPager(state = pager, userScrollEnabled = menu == null, key = { feed.videos[it].key }, modifier = Modifier.fillMaxSize().semantics { contentDescription = "上下滑切换视频" }) { index ->
+        } else VerticalPager(state = pager, userScrollEnabled = menu == null && creator == null, key = { feed.videos[it].key }, modifier = Modifier.fillMaxSize().semantics { contentDescription = "上下滑切换视频" }) { index ->
             val video = feed.videos[index]
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val shortWindow = maxHeight < 500.dp
@@ -116,11 +119,15 @@ import kotlinx.coroutines.*
                     // captions stay in portrait rather than covering the landscape picture.
                     if (menu == null && !landscape && !held) {
                     if (!controlsVisible) Column(Modifier.align(Alignment.BottomStart).windowInsetsPadding(WindowInsets.systemGestures.only(WindowInsetsSides.Bottom)).padding(start = 16.dp, end = 116.dp, bottom = 20.dp)) {
-                        Text(active?.author ?: video.author, Modifier.padding(bottom = 5.dp), color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
+                        Text(active?.author ?: video.author, Modifier.clickable(enabled = active?.mid?.let { it > 0 } == true) { active?.let(vm::openCreator) }.padding(bottom = 5.dp), color = Color.White.copy(alpha = .8f), fontSize = 12.sp)
                         Text(active?.title ?: video.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 15.sp, lineHeight = 20.sp)
                     }
                     val buttons: @Composable () -> Unit = {
                         val ready = active != null && active.aid > 0
+                        if (active?.mid?.let { it > 0 } == true) Column(Modifier.clickable { vm.openCreator(active) }.semantics { contentDescription = "打开作者主页" }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            UserAvatar(active.authorAvatar, active.author, Modifier.size(44.dp))
+                            Text("UP主", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
                         ShortAction(if (actions?.liked == true) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt, if (actions?.liked == true) "已赞" else "点赞", if (actions?.liked == true) "取消点赞" else "点赞视频", ready && actions?.likeBusy != true, active = actions?.liked == true) { vm.requireLogin { actions?.toggleLike() } }
                         ShortAction(Icons.Default.ChatBubbleOutline, "评论", "打开评论", ready) { menu = "comments" }
                         ShortAction(if (actions?.favorited == true) Icons.Default.Star else Icons.Default.StarBorder, if (actions?.favorited == true) "已收藏" else "收藏", "收藏视频", ready, active = actions?.favorited == true, onClick = ::favorites)

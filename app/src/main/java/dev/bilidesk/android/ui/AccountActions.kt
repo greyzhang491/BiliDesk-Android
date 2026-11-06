@@ -14,15 +14,19 @@ import dev.bilidesk.android.data.*
 import kotlinx.coroutines.*
 
 /** An unreadable relationship must not be presented as a confirmed unfollowed state. */
-@Composable fun CreatorFollowButton(mid: Long, vm: AppViewModel) {
+@Composable fun CreatorFollowButton(mid: Long, vm: AppViewModel, initial: Boolean? = null) {
     val user by vm.user.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    var followed by remember(mid, user?.mid) { mutableStateOf<Boolean?>(null) }
+    var followed by remember(mid, user?.mid) { mutableStateOf<Boolean?>(initial) }
     var busy by remember(mid, user?.mid) { mutableStateOf(false) }
     var failed by remember(mid, user?.mid) { mutableStateOf(false) }
     var reload by remember(mid, user?.mid) { mutableIntStateOf(0) }
+    LaunchedEffect(mid, user?.mid) { Graph.api.relationChanges.collect { change ->
+        if (change.mid == mid && change.account == user?.mid?.toString()) { followed = change.followed; failed = false }
+    } }
     LaunchedEffect(mid, user?.mid, reload) {
         if (user == null || mid <= 0) return@LaunchedEffect
+        if (initial != null && reload == 0) { followed = initial; return@LaunchedEffect }
         busy = true; failed = false
         try { followed = Graph.api.following(mid) }
         catch (e: Exception) { if (e is CancellationException) throw e; failed = true }

@@ -51,7 +51,7 @@ class PlaybackDeviceTest {
             override fun onPlayerError(playbackError: PlaybackException) { error.set(errorSummary(playbackError)) }
         }
         ActivityScenario.launch<MainActivity>(intent).use { scenario ->
-            scenario.onActivity { Graph.player.exo.addListener(listener) }
+            scenario.onActivity { Graph.player.exo.addListener(listener); Graph.player.exo.playerError?.let { error.set(errorSummary(it)) } }
             try {
                 assertTrue("Playback never advanced. ${error.get()}", waitFor(60000) { Graph.player.exo.isPlaying && Graph.player.exo.currentPosition > 1200 })
                 @Suppress("DEPRECATION")

@@ -8,7 +8,12 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.manifest.DashManifestParser
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import java.io.ByteArrayInputStream
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -44,7 +49,10 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
     private val loadedSegments = mutableSetOf<Int>()
     private var lastHistoryAt = 0L
     private var lastCloudAt = 0L
-    private var backupIndex = 0
+    private var renewals = 0
+    private var stablePlaybackAt = 0L
+    private var requestedQuality = store.settings.value.quality
+    private val mediaHttp = api.http.newBuilder().cookieJar(CookieJar.NO_COOKIES).connectTimeout(4, TimeUnit.SECONDS).readTimeout(6, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).addNetworkInterceptor(MediaRangeInterceptor()).build()
     private var triedAvcFallback = false
     private var primaryAudioKey = ""
     private var primaryAudioItem: MediaItem? = null
@@ -56,13 +64,14 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
     fun refreshSession() { if (sessionOwner.isInitialized()) sessionOwner.value.refresh() }
     val exo: ExoPlayer by lazy {
         ExoPlayer.Builder(context)
-            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(15000, 50000, 1200, 2500).build())
+            .setBandwidthMeter(DefaultBandwidthMeter.Builder(context).setInitialBitrateEstimate(1_000_000L).build())
+            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(8000, 30000, 500, 1000).setBackBuffer(5000, true).setTargetBufferBytes(32 * 1024 * 1024).setPrioritizeTimeOverSizeThresholds(true).build())
             .build().apply {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
                 setHandleAudioBecomingNoisy(true)
                 setWakeMode(C.WAKE_MODE_LOCAL)
                 addListener(object: Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) { _state.value = _state.value.copy(playing = isPlaying); if (isPlaying) startService() }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) { stablePlaybackAt = if (isPlaying) android.os.SystemClock.elapsedRealtime() else 0L; _state.value = _state.value.copy(playing = isPlaying); if (isPlaying) startService() }
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         _state.value = _state.value.copy(loading = playbackState == Player.STATE_BUFFERING)
                         if (playbackState == Player.STATE_ENDED) {
@@ -78,17 +87,14 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                         val s = _state.value
                         val codec = s.plan?.video?.codec.orEmpty()
                         val audioOnly = s.music && !s.musicVisual && s.plan?.audio != null
-                        if (!audioOnly && !s.local && codec.isNotBlank() && !codec.startsWith("avc", ignoreCase = true) && !triedAvcFallback) {
+                        if (!audioOnly && !s.local && PlaybackFallbackPolicy.needsAvc(codec, error.errorCode, error) && !triedAvcFallback) {
                             triedAvcFallback = true
                             fallbackToAvc(exo.currentPosition.coerceAtLeast(0))
                             return
                         }
-                        val backups = (if (audioOnly) s.plan?.audio else s.plan?.video)?.backups.orEmpty()
-                        if (!s.local && backupIndex < backups.size && error.errorCode in 2000..2999) {
-                            val url = backups[backupIndex++]
-                            val plan = if (audioOnly) s.plan!!.copy(audio = s.plan.audio!!.copy(url = url)) else s.plan!!.copy(video = s.plan.video.copy(url = url))
-                            attach(plan, exo.currentPosition)
-                        } else _state.value = s.copy(loading = false, playing = false, error = "播放失败（${error.errorCode}），请重试或选择其他画质")
+                        if (!s.local && currentEpisode() != null && error.errorCode in 2000..2999 && renewals++ < 1) {
+                            renewMedia()
+                        } else _state.value = s.copy(loading = false, playing = false, error = if (error.errorCode in 2000..2999) "视频连接暂时中断，恢复网络后可重试；进度已保留" else "播放失败（${error.errorCode}），请重试或选择其他画质")
                     }
                 })
             }
@@ -109,6 +115,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                         exo.seekTo(it.endMs); _state.value = _state.value.copy(notice = "已跳过赞助片段")
                     }
                 }
+                if (stablePlaybackAt > 0 && android.os.SystemClock.elapsedRealtime() - stablePlaybackAt > 10000) renewals = 0
                 val now = System.currentTimeMillis()
                 if (exo.isPlaying && now - lastHistoryAt > 5000) { lastHistoryAt = now; saveHistory() }
                 if (exo.isPlaying && now - lastCloudAt > 30000) { lastCloudAt = now; reportHistory() }
@@ -175,6 +182,8 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         val detail = _state.value.detail ?: return
         val episode = detail.pages[index]
         triedAvcFallback = false
+        renewals = 0
+        requestedQuality = quality
         loadedSegments.clear(); segments = emptyList(); dmJob?.cancel(); sponsorJob?.cancel()
         _state.value = _state.value.copy(pageIndex = index, loading = true, error = null, danmaku = emptyList(), local = false, dmError = false)
         val cache = if (useCache) store.acquireCache(detail.video.key, episode.cid, forMusic = _state.value.music) else { store.pinCache(null); null }
@@ -183,9 +192,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         } else {
             var plan = api.play(detail.video, episode, quality, forceAvc = _state.value.musicVisual)
             if (_state.value.music) plan = selectMusicAudio(plan)
-            else if (store.settings.value.cdnMode == 0) plan = plan.copy(video = selectCdn(plan.video), audio = plan.audio?.let { selectCdn(it) })
             if (token != generation) return
-            backupIndex = 0
             attach(plan, position)
         }
         if (token != generation) return
@@ -198,14 +205,13 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         val detail = _state.value.detail ?: return
         val episode = currentEpisode() ?: return
         val token = generation
-        val quality = _state.value.plan?.video?.quality ?: store.settings.value.quality
+        val quality = requestedQuality
         _state.value = _state.value.copy(loading = true, error = null)
         prepareJob?.cancel()
         prepareJob = scope.launch {
             try {
                 val plan = api.play(detail.video, episode, quality, forceAvc = true)
                 if (token != generation) return@launch
-                backupIndex = 0
                 attach(plan, position)
                 _state.value = _state.value.copy(notice = "已切换为 H.264 兼容播放")
             } catch (e: Exception) {
@@ -214,22 +220,24 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
             }
         }
     }
-    private suspend fun selectCdn(stream: Stream): Stream = supervisorScope {
-        val all = (listOf(stream.url) + stream.backups).distinct()
-        if (all.size < 2) return@supervisorScope stream
-        val candidates = all.filterNot { it.contains("mcdn") || it.contains("os=mcdn") }.ifEmpty { all }.take(3)
-        val client = api.http.newBuilder().cookieJar(CookieJar.NO_COOKIES).callTimeout(2, TimeUnit.SECONDS).readTimeout(2, TimeUnit.SECONDS).build()
-        val speeds = candidates.map { url -> async(Dispatchers.IO) {
+    private fun renewMedia() {
+        val detail = _state.value.detail ?: return
+        val episode = currentEpisode() ?: return
+        val token = generation
+        val position = exo.currentPosition.coerceAtLeast(0)
+        val autoplay = exo.playWhenReady
+        _state.value = _state.value.copy(loading = true, error = null)
+        prepareJob?.cancel()
+        prepareJob = scope.launch {
             try {
-                val start = System.nanoTime()
-                val bytes = client.newCall(Request.Builder().url(url).header("Range", "bytes=0-32767").header("User-Agent", BILI_UA).header("Referer", "https://www.bilibili.com/").build()).awaitResponse().use { response ->
-                    if (!response.isSuccessful) 0 else response.body?.source()?.readByteArray(32768)?.size ?: 0
-                }
-                url to if (bytes > 0) bytes * 1e9 / (System.nanoTime() - start).coerceAtLeast(1) else -1.0
-            } catch (e: Exception) { if (e is CancellationException) throw e; url to -1.0 }
-        } }.awaitAll()
-        val selected = speeds.filter { it.second > 0 }.maxByOrNull { it.second }?.first ?: stream.url
-        stream.copy(url = selected, backups = all.filter { it != selected })
+                var plan = api.play(detail.video, episode, requestedQuality, forceAvc = triedAvcFallback || _state.value.musicVisual)
+                if (_state.value.music) plan = selectMusicAudio(plan)
+                if (token == generation) attach(plan, position, autoplay)
+            } catch (failure: Exception) {
+                if (failure is CancellationException) throw failure
+                if (token == generation) _state.value = _state.value.copy(loading = false, error = "视频连接暂时中断，进度已保留；请重试")
+            }
+        }
     }
     private fun selectMusicAudio(plan: PlayPlan): PlayPlan = plan.copy(audio = MusicAudioPolicy.select(plan.audioOptions.ifEmpty { listOfNotNull(plan.audio) }, store.settings.value.music.audioQuality) ?: plan.audio)
     private fun attach(plan: PlayPlan, position: Long, autoplay: Boolean = true) {
@@ -241,16 +249,24 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
             return
         }
         val referer = detail.video.url
-        val http = DefaultHttpDataSource.Factory().setUserAgent(BILI_UA).setConnectTimeoutMs(15000).setReadTimeoutMs(20000).setDefaultRequestProperties(mapOf("Referer" to referer))
-        val sourceFactory = DefaultDataSource.Factory(context, http)
+        val http = OkHttpDataSource.Factory(mediaHttp).setUserAgent(BILI_UA).setDefaultRequestProperties(mapOf("Referer" to referer))
+        val streams = listOf(plan.video) + plan.videoOptions + listOfNotNull(plan.audio)
+        val backups = streams.associate { it.url to it.backups }
+        val resilient: DataSource.Factory = if (store.settings.value.cdnMode == 0) DataSource.Factory { ResilientMediaDataSource(http, backups) } else http
+        val sourceFactory = DefaultDataSource.Factory(context, resilient)
         val metadata = MediaMetadata.Builder().setTitle(detail.video.title).setArtist(detail.video.author).setArtworkUri(detail.video.cover.takeIf { it.isNotBlank() }?.let(Uri::parse)).build()
         fun item(stream: Stream) = MediaItem.Builder().setUri(stream.url).setMediaId(detail.video.key).setMimeType(stream.mime).setMediaMetadata(metadata).build()
+        fun indexedSource(streams: List<Stream>, mediaItem: MediaItem): androidx.media3.exoplayer.source.MediaSource? {
+            val xml = DashStreams.xml(streams, plan.durationMs) ?: return null
+            val manifest = DashManifestParser().parse(Uri.parse(streams.first().url), ByteArrayInputStream(xml.toByteArray()))
+            return DashMediaSource.Factory(sourceFactory).createMediaSource(manifest, mediaItem).apply { updateMediaItem(mediaItem) }
+        }
         fun videoSource() = if (plan.video.mime.contains("mpegURL")) HlsMediaSource.Factory(sourceFactory).createMediaSource(item(plan.video))
-                    else ProgressiveMediaSource.Factory(sourceFactory, DefaultExtractorsFactory()).createMediaSource(item(plan.video))
+                    else indexedSource(DashStreams.videos(plan), item(plan.video)) ?: ProgressiveMediaSource.Factory(sourceFactory, DefaultExtractorsFactory()).createMediaSource(item(plan.video))
         val audio = plan.audio?.let { stream ->
             val key = "${detail.video.key}:${currentEpisode()?.cid}:${stream.url}"
             if (primaryAudioKey != key || primaryAudioItem == null) { primaryAudioKey = key; primaryAudioItem = item(stream) }
-            ProgressiveMediaSource.Factory(sourceFactory).createMediaSource(primaryAudioItem!!)
+            indexedSource(listOf(stream), primaryAudioItem!!) ?: ProgressiveMediaSource.Factory(sourceFactory).createMediaSource(primaryAudioItem!!)
         }
         // Do not even instantiate a video source while listening. Audio remains the primary
         // timeline when the user explicitly opens the picture, preserving media-session identity.
@@ -276,7 +292,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         prepareJob?.cancel(); val token = ++generation
         prepareJob = scope.launch { try { prepare(_state.value.pageIndex, position, token, q) } catch (e: Exception) { if (e is CancellationException) throw e; _state.value = _state.value.copy(loading = false, error = e.message) } }
     }
-    fun line(url: String) { val plan = _state.value.plan ?: return; attach(plan.copy(video = plan.video.copy(url = url)), exo.currentPosition) }
+    fun line(url: String) { val plan = _state.value.plan ?: return; attach(DashStreams.preferLine(plan, url), exo.currentPosition, exo.playWhenReady) }
     fun retry() {
         val state = _state.value
         val d = state.detail ?: return
@@ -288,7 +304,13 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                 catch (e: Exception) { if (e is CancellationException) throw e; _state.value = _state.value.copy(loading = false, error = e.message ?: "联网重试失败") }
             }
         } else if (d.video.kind == "live" || d.pages.isEmpty()) { _state.value = PlaybackState(); open(d.video) }
-        else quality(state.plan?.video?.quality ?: store.settings.value.quality)
+        else quality(requestedQuality)
+    }
+    fun onNetworkRecovered() {
+        val state = _state.value
+        if (!state.local && !state.loading && state.error != null && exo.playerError?.errorCode in 2000..2999) {
+            renewals = 0; renewMedia()
+        }
     }
     fun seek(position: Long) { exo.seekTo(position.coerceIn(0, exo.duration.takeIf { it > 0 } ?: Long.MAX_VALUE)) }
     fun speed(speed: Float) { exo.setPlaybackSpeed(speed); store.update(store.settings.value.copy(playbackSpeed = speed)) }
@@ -366,7 +388,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         if (!state.music || state.local) return
         val plan = state.plan ?: return
         val selected = selectMusicAudio(plan)
-        if (selected.audio?.url != plan.audio?.url) { backupIndex = 0; attach(selected, exo.currentPosition.coerceAtLeast(0), exo.playWhenReady) }
+        if (selected.audio?.url != plan.audio?.url) { renewals = 0; attach(selected, exo.currentPosition.coerceAtLeast(0), exo.playWhenReady) }
     }
     fun resumeVideoTrack() { if (_state.value.detail != null) exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, _state.value.music && !_state.value.musicVisual).build() }
     fun pauseForBackground() {

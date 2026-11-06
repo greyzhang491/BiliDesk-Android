@@ -198,7 +198,7 @@ import kotlinx.coroutines.*
         item { SettingsHeading("播放") }
         item { ChoiceSetting("默认清晰度", Quality.options.map(Quality::label), Quality.options.indexOf(s.quality).coerceAtLeast(0)) { save(s.copy(quality = Quality.options[it])) } }
         item { SwitchSetting("优先 HEVC 编码", "同清晰度下优先选择更省流量的 HEVC", s.preferHevc) { save(s.copy(preferHevc = it)) } }
-        item { ChoiceSetting("线路选择", listOf("自动测速", "跟随服务端"), s.cdnMode) { save(s.copy(cdnMode = it)) } }
+        item { ChoiceSetting("线路选择", listOf("自动切换备用", "仅首选线路"), s.cdnMode) { save(s.copy(cdnMode = it)) } }
         item { SwitchSetting("后台播放 / 听视频", "锁屏后继续播放，支持系统媒体控制", s.background) { save(s.copy(background = it)) } }
         item { HoldSpeedSettings(s, Graph.store::change) }
         item { SettingsHeading("缓存管理") }

@@ -97,6 +97,8 @@ class CommentsDeviceTest {
                     assertTrue("Android reaction transition failed", readBack.withReaction(true, true).withReaction(false, true).disliked)
                     node(By.desc("取消评论点踩 700")); node(By.desc("点赞评论 700"))
                     clickDescription("取消评论点踩 700")
+                    await("Dislike removal endpoint not called") { fixture.writeCount("/x/v2/reply/hate") == 2 }
+                    node(By.desc("点踩评论 700"))
                     assertEquals(1, fixture.writeCount("/x/v2/reply/action")); assertEquals(2, fixture.writeCount("/x/v2/reply/hate"))
                     clickDescription("查看夏日听风的主页"); text("用户主页"); text("投稿视频"); text("1280 粉丝")
                     text("夏日听风的投稿 1"); shot("commenter-profile")

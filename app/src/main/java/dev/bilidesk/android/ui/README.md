@@ -13,6 +13,8 @@
 | [PlaybackGestures.kt](PlaybackGestures.kt)、[LayoutPolicy.kt](LayoutPolicy.kt)、[AdaptivePlayerLayout.kt](AdaptivePlayerLayout.kt)、[ImmersivePlayback.kt](ImmersivePlayback.kt) | 手势判定、方向与窗口布局、沉浸模式 |
 | [PlaybackSettings.kt](PlaybackSettings.kt)、[CacheSettings.kt](CacheSettings.kt)、[DownloadOptions.kt](DownloadOptions.kt)、[FeedDisplaySettings.kt](FeedDisplaySettings.kt) | 播放中设置、缓存选择和列表密度 |
 | [CommentComponents.kt](CommentComponents.kt)、[CreatorScreen.kt](CreatorScreen.kt) | 评论富文本、头像、等级、原图、提及查找与用户主页／投稿 |
+| [CreatorIdentity.kt](CreatorIdentity.kt)、[CreatorScreen.kt](CreatorScreen.kt) | 作者头像／粉丝、统一主页、UP内搜索与当前投稿定位 |
+| [FollowingScreen.kt](FollowingScreen.kt) | 我的关注、分页／刷新、关系更新与主页入口 |
 | [AccountScreens.kt](AccountScreens.kt)、[CoinPanel.kt](CoinPanel.kt) | 登录、个人内容、关于与投币交互 |
 
 修改布局要同时考虑手机竖屏、宽横屏和平板分屏；窗口宽度与物理设备类别不能相互替代。横屏全屏使用普通播放控件，不叠加短视频竖屏互动条。评论抽屉不应停止短视频播放；切换唱片/歌词/原视频不能重建音频会话。
@@ -32,3 +34,7 @@
 0.2.1评论按主评论／线程分别持有分页和LazyListState，打开主页使用全窗口Dialog保留底层composition，系统返回和箭头都恢复同一个列表实例。切换视频／账号／排序或主动刷新会重建对应分页；不要把CommentFeedState提到全局跨账号复用。
 
 富文本保留原始message和UTF-16偏移，表情与@链接仅负责呈现；已知UID直接导航，缺少UID才按昵称查询，同名结果需要选择。不得从昵称猜测UID，不能把公开名片following布尔关系当成关注数量。赞踩与回复继续通过同一AccountWriteClient，不自动重试结果未知的写入。
+
+0.2.2：`CreatorIdentity`异步显示头像与粉丝数；`CreatorScreen`统一主页搜索与当前投稿定位；`FollowingScreen`负责我的关注分页与状态更新。AppViewModel持有主页弹层和可观察短视频会话，打开主页不能释放共享播放器。投稿选择携带同UP分页和关键词，不能回退为普通推荐或普通播放器。所有已有space入口复用此页。
+
+短视频切换会话时，收集分页StateFlow与PagerState都以ShortSession为key；不能让新的selectedIndex与上一队列的旧列表组合，否则选择非首行会被错误截到索引0。主页投稿播放方式按打开页面的路由决定，不能只看后台是否正在听音乐。

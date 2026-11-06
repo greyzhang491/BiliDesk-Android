@@ -19,13 +19,14 @@ fun durationValue(value: String): Long = value.split(':').fold(0L) { total, v ->
 data class Video(
     val bvid: String = "", val aid: Long = 0, val title: String = "", val cover: String = "",
     val author: String = "", val mid: Long = 0, val plays: Long = 0, val danmaku: Long = 0,
-    val duration: Long = 0, val kind: String = "video", val targetId: Long = 0, val subtitle: String = ""
+    val duration: Long = 0, val kind: String = "video", val targetId: Long = 0, val subtitle: String = "",
+    val authorAvatar: String = "", val publishedAt: Long = 0
 ) {
     val key get() = if (kind == "video") bvid.ifBlank { "av$aid" } else "$kind$targetId"
     val url get() = when (kind) { "live" -> "https://live.bilibili.com/$targetId"; "season" -> "https://www.bilibili.com/bangumi/play/ss$targetId"; else -> "https://www.bilibili.com/video/${bvid.ifBlank { "av$aid" }}" }
-    fun json() = JSONObject().put("bvid", bvid).put("aid", aid).put("title", title).put("cover", cover).put("author", author).put("mid", mid).put("plays", plays).put("danmaku", danmaku).put("duration", duration).put("kind", kind).put("targetId", targetId).put("subtitle", subtitle)
+    fun json() = JSONObject().put("bvid", bvid).put("aid", aid).put("title", title).put("cover", cover).put("author", author).put("mid", mid).put("plays", plays).put("danmaku", danmaku).put("duration", duration).put("kind", kind).put("targetId", targetId).put("subtitle", subtitle).put("authorAvatar", authorAvatar).put("publishedAt", publishedAt)
     companion object {
-        fun from(j: JSONObject) = Video(j.optString("bvid"), j.optLong("aid"), j.optString("title"), j.optString("cover"), j.optString("author"), j.optLong("mid"), j.optLong("plays"), j.optLong("danmaku"), j.optLong("duration"), j.optString("kind", "video"), j.optLong("targetId"), j.optString("subtitle"))
+        fun from(j: JSONObject) = Video(j.optString("bvid"), j.optLong("aid"), j.optString("title"), j.optString("cover"), j.optString("author"), j.optLong("mid"), j.optLong("plays"), j.optLong("danmaku"), j.optLong("duration"), j.optString("kind", "video"), j.optLong("targetId"), j.optString("subtitle"), j.optString("authorAvatar"), j.optLong("publishedAt"))
         fun api(j: JSONObject): Video {
             val owner = j.optJSONObject("owner") ?: j.obj("upper")
             val stat = j.obj("stat")
@@ -37,14 +38,19 @@ data class Video(
                 owner.optString("name", j.optString("author")), owner.optLong("mid", j.optLong("mid")),
                 stat.optLong("view", j.obj("cnt_info").optLong("play", j.optLong("play"))),
                 stat.optLong("danmaku", j.optLong("video_review")),
-                if (rawDuration.contains(':')) durationValue(rawDuration) else rawDuration.toLongOrNull() ?: 0
+                if (rawDuration.contains(':')) durationValue(rawDuration) else rawDuration.toLongOrNull() ?: 0,
+                authorAvatar = owner.optString("face", j.optString("upic")).https(),
+                publishedAt = j.optLong("pubdate", j.optLong("created"))
             )
         }
     }
 }
 data class Episode(val cid: Long, val title: String, val duration: Long, val bvid: String = "", val aid: Long = 0, val epid: Long = 0)
 data class VideoDetail(val video: Video, val description: String, val pages: List<Episode>, val likes: Long = 0, val coins: Long = 0, val favorites: Long = 0, val collection: VideoCollection? = null)
-data class FeedPage(val videos: List<Video>, val next: String = "", val more: Boolean = true)
+data class FeedPage(val videos: List<Video>, val next: String = "", val more: Boolean = true, val total: Long = -1)
+data class CreatorPage(val creators: List<CreatorProfile>, val total: Long, val more: Boolean)
+data class RelationChange(val account: String, val mid: Long, val followed: Boolean)
+
 data class User(val mid: Long, val name: String, val avatar: String, val level: Int, val vip: Boolean)
 data class Folder(val id: Long, val title: String, val count: Int, val selected: Boolean = false)
 data class Comment(val name: String, val avatar: String, val text: String, val likes: Long, val id: Long = 0, val mid: Long = 0, val createdAt: Long = 0, val liked: Boolean = false, val replyCount: Int = 0, val rootId: Long = 0, val parentId: Long = 0, val replies: List<Comment> = emptyList(), val pinned: Boolean = false,
@@ -54,8 +60,9 @@ data class Comment(val name: String, val avatar: String, val text: String, val l
 }
 data class DynamicItem(val id: String, val name: String, val avatar: String, val text: String, val published: String, val video: Video?, val pictures: List<String>)
 data class MessageItem(val title: String, val text: String, val url: String = "", val talkerId: Long = 0)
-data class Stream(val url: String, val backups: List<String>, val quality: Int, val codec: String, val bandwidth: Long, val mime: String)
-data class PlayPlan(val video: Stream, val audio: Stream? = null, val qualities: List<Int> = emptyList(), val durationMs: Long = 0, val preview: Boolean = false, val audioOptions: List<Stream> = emptyList())
+data class Stream(val url: String, val backups: List<String>, val quality: Int, val codec: String, val bandwidth: Long, val mime: String,
+    val initialization: String = "", val indexRange: String = "", val width: Int = 0, val height: Int = 0, val frameRate: String = "")
+data class PlayPlan(val video: Stream, val audio: Stream? = null, val qualities: List<Int> = emptyList(), val durationMs: Long = 0, val preview: Boolean = false, val audioOptions: List<Stream> = emptyList(), val videoOptions: List<Stream> = emptyList(), val automatic: Boolean = false)
 data class Danmaku(val timeMs: Long, val text: String, val mode: Int = 1, val color: Int = 0xffffff, val weight: Int = 0)
 data class Segment(val cid: Long, val startMs: Long, val endMs: Long, val category: String, val action: String, val votes: Int)
 data class HistoryEntry(val video: Video, val cid: Long, val positionMs: Long, val at: Long)

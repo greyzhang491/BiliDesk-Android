@@ -14,6 +14,9 @@ import java.io.File
 
 class BiliDeskApplication: Application(), ImageLoaderFactory {
     override fun newImageLoader() = ImageLoader.Builder(this)
+        .okHttpClient { Graph.api.http.newBuilder().cookieJar(okhttp3.CookieJar.NO_COOKIES)
+            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).readTimeout(7, java.util.concurrent.TimeUnit.SECONDS).callTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+            .addInterceptor { chain -> chain.proceed(chain.request().newBuilder().header("User-Agent", BILI_UA).header("Referer", "https://www.bilibili.com/").build()) }.build() }
         .diskCache { DiskCache.Builder().directory(File(cacheDir, "image_cache")).maxSizeBytes(CachePolicy.IMAGE_LIMIT).build() }
         .memoryCache { MemoryCache.Builder(this).maxSizePercent(.12).build() }.build()
     override fun onCreate() {

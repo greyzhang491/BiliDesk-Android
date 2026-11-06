@@ -56,3 +56,5 @@
 GitHub Issue、Pull Request 和公开附件可被其他人查看。仅提交复现所需的最少信息；日志与截图应先移除密码、Cookie、SESSDATA、bili_jct、令牌、有效登录二维码、私信和个人资料。维护者不会要求用户在公开讨论中提供账号凭据。安全问题请按 [SECURITY](SECURITY.md) 报告。
 
 平台相关政策：[哔哩哔哩隐私政策](https://www.bilibili.com/blackboard/privacy-pc.html)。项目身份与内容权利说明见 [DISCLAIMER](DISCLAIMER.md)。
+
+0.2.2新增本机私有列表元数据快照：按账号隔离的文件名存放，最多8份、约1MB、每份32条，超过7天不再使用。不包含Cookie、原始接口响应或媒体文件，不上传到项目仓库；系统清除应用缓存可以移除。公开UP资料短时缓存在内存，关注列表按当前账号请求，不发布或上传给维护者。

@@ -2,6 +2,9 @@
 
 | 文件 | 责任 |
 | --- | --- |
+| [ReadNetwork.kt](ReadNetwork.kt) | GET总超时、完整响应取消与有限重试，独立于账号写入 |
+| [FeedSnapshots.kt](FeedSnapshots.kt) | 按账号隔离、有大小与期限上限的首页元数据快照 |
+| [CreatorVideoLocator.kt](CreatorVideoLocator.kt) | 根据日期和精确视频ID定位投稿页，限制请求数 |
 | [BiliApi.kt](BiliApi.kt) | 平台读取、登录流程、WBI、播放计划、字幕、片段查询与历史上报；共用异步请求适配 |
 | [AccountWriteClient.kt](AccountWriteClient.kt) | 账号写请求、身份参数、CSRF 与错误分类 |
 | [AccountSession.kt](AccountSession.kt) | 保存会话的启动恢复、只读验证、暂时失败与明确过期区分、并发与迟到响应隔离 |
@@ -21,3 +24,5 @@
 评论最早排序须通过总数定位服务端末页并反向读取，不能只逆序当前页；关注关系不能把拉黑标记当成已关注。新建收藏夹出现未知写入结果时保留错误，让用户刷新确认，不能自动重放创建请求。新增模型与音质／歌词规则由 `MusicLibraryAndSocialTest` 检查。
 
 评论与主页模型见`SocialModels.kt`和`CommentContent.kt`：解析缺省字段、表情、图片与提及，保持64位ID、root／parent关系和互斥赞踩；公开账号资料不写入登录账号缓存。
+
+0.2.2：`ReadNetwork`仅重试快速失败的GET，不参与AccountWriteClient；超时与服务端拒绝不循环重试。`FeedSnapshots`只存最多8份／约1MB／7天的私有元数据，调用方必须按账号区分key，不能放入Cookie或原始响应。`CreatorVideoLocator`按日期查页并核对ID，有10请求和UI20秒上限；不能按日期直接当作匹配。关注列表读取与确认成功后的关系事件在BiliApi中，公开资料缓存不包含本机登录凭据。

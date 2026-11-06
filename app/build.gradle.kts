@@ -10,8 +10,8 @@ android {
         applicationId = "dev.bilidesk.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.2.1"
+        versionCode = 13
+        versionName = "0.2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -44,6 +44,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.media3:media3-exoplayer:1.6.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.6.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.6.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.6.1")
     implementation("androidx.media3:media3-ui:1.6.1")

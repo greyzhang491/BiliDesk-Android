@@ -107,7 +107,7 @@ private class CommentFeedState {
     LaunchedEffect(feed) { if (!feed.started) load() }
     LaunchedEffect(feed, nearEnd, feed.cursor, feed.busy, feed.error) { if (nearEnd && feed.comments.isNotEmpty() && feed.error == null) load() }
     BackHandler(thread != null && profile == null) { thread = null }
-    profile?.let { seed -> CreatorProfileDialog(seed, vm, { profile = null }, { profile = null; vm.openVideo(it) }) }
+    profile?.let { seed -> CreatorProfileDialog(seed, vm, { profile = null }, { profile = null; vm.openVideo(it) }, current = video, onSelection = { item, visible, next, keyword -> profile = null; vm.playCreatorVideo(item, visible, next, keyword) }) }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

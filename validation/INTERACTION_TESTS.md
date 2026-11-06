@@ -71,3 +71,5 @@ adb shell am instrument -w -r -e playback_fixture true -e class dev.bilidesk.and
 用`CommentsDeviceTest`检查元数据、赞踩、楼中楼指定回复、彩色链接、提及查找、头像主页、投稿播放、原图、分页与滚动恢复。`InteractionFixture(richComments = true)`使用CommentTestData独立绘制头像／配图和模拟用户；数据仅在androidTest。失败场景模拟评论读取被拒和发出写入后丢失响应，断言没有自动重试与重复发布。
 
 分别运行普通手机、平板；短视频场景旋转到横屏，核对评论与主页没有替换当前MediaItem且播放持续。NewInteractionsDeviceTest与ImmersiveGesturesDeviceTest在真实长按加速后检查临时速度文字框不存在，再完成下拉锁定／解除或横滑调进度。不可用关闭手势来让“没有提示”断言通过。
+
+0.2.2新增`NetworkPlaybackDeviceTest`和`CreatorAndFollowingDeviceTest`，分别覆盖真实索引轨道的受控网络传输及作者／关注操作。步骤和实测边界见[验证记录](../docs/VALIDATION-0.2.2.md)。

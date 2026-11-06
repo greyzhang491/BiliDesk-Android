@@ -168,7 +168,7 @@ import kotlinx.coroutines.*
                 }
                 Column(Modifier.widthIn(max = 600.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(track.displayTitle.ifBlank { video?.title.orEmpty() }, color = Color.White, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                    Text(video?.author.orEmpty(), Modifier.padding(top = 7.dp, bottom = 8.dp), color = Color.White.copy(alpha = .6f), fontSize = 12.sp, maxLines = 1)
+                    Text(video?.author.orEmpty(), Modifier.clickable(enabled = video?.mid?.let { it > 0 } == true) { video?.let(vm::openCreator) }.padding(top = 7.dp, bottom = 8.dp), color = Color.White.copy(alpha = .6f), fontSize = 12.sp, maxLines = 1)
                     if (playback.music && playback.error != null) {
                         val needsPicture = !playback.local && playback.plan != null && playback.plan?.audio == null
                         TextButton(onClick = { if (needsPicture) pane = 2 else engine.retry() }) { Text("${playback.error} · ${if (needsPicture) "显示原视频" else "重试"}", color = Color.White, fontSize = 11.sp) }

@@ -27,6 +27,10 @@ suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { cont 
 
 class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHttpClient? = null) {
     val http = client ?: OkHttpClient.Builder().cookieJar(cookies).connectTimeout(12, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(35, TimeUnit.SECONDS).build()
+    private val reads = http.newBuilder().connectTimeout(4, TimeUnit.SECONDS).readTimeout(7, TimeUnit.SECONDS).callTimeout(9, TimeUnit.SECONDS).build()
+    val relationChanges = kotlinx.coroutines.flow.MutableSharedFlow<RelationChange>(extraBufferCapacity = 16)
+    private val profiles = LinkedHashMap<Long, Pair<Long, CreatorProfile>>()
+    private val profileMutex = Mutex()
     private val passport = http.newBuilder().cookieJar(CookieJar.NO_COOKIES).build()
     private val accountWrites = AccountWriteClient(http, { cookies.value("bili_jct") }, { cookies.value("SESSDATA").isNotBlank() }, { warmUp() })
     private val keyMutex = Mutex()
@@ -58,10 +62,7 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         while (true) {
             val p = if (sign) Wbi.sign(params, signingKey(refresh), System.currentTimeMillis() / 1000) else params
             val url = (host + path).toHttpUrl().newBuilder().apply { p.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
-            val root = withContext(Dispatchers.IO) { http.newCall(request(url.toString(), referer).build()).awaitResponse().use { response ->
-                if (!response.isSuccessful) throw ApiException(response.code, if (response.code == 412 || response.code == 429) "当前网络请求过于频繁，请稍后重试" else "服务请求失败（HTTP ${response.code}）")
-                try { JSONObject(response.body?.string().orEmpty()) } catch (_: Exception) { throw ApiException(-2, "服务返回了无法识别的内容，请稍后重试") }
-            } }
+            val root = withContext(Dispatchers.IO) { readJson(reads, request(url.toString(), referer).build()) }
             val code = root.optInt("code", -999)
             if (code == -403 && sign && !refresh) { refresh = true; continue }
             if (code == -412 && rateRetries < 2) { delay(1500L shl rateRetries++); continue }
@@ -82,13 +83,13 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         return AccountUserResponse.parse(j)
     }
     suspend fun feed(tab: String, page: Int = 1, region: Int = 0): FeedPage {
-        if (tab in listOf("分区", "推荐")) warmUp()
+        if (tab in listOf("分区", "推荐")) withTimeoutOrNull(1200) { try { warmUp() } catch (_: IOException) { } }
         val params = mapOf("pn" to "$page", "ps" to "24")
         val j = when (tab) {
             "推荐" -> try {
                 val refresh = recommendationRefresh.incrementAndGet().toString()
-                json("/x/web-interface/wbi/index/top/feed/rcmd", mapOf("fresh_type" to "4", "ps" to "24", "fresh_idx" to refresh, "fresh_idx_1h" to refresh, "brush" to "$page", "web_location" to "1430650", "feed_version" to "V8", "homepage_ver" to "1"), sign = true)
-            } catch (e: Exception) { if (e is CancellationException) throw e; json("/x/web-interface/popular", params) }
+                withTimeoutOrNull(8000) { json("/x/web-interface/wbi/index/top/feed/rcmd", mapOf("fresh_type" to "4", "ps" to "24", "fresh_idx" to refresh, "fresh_idx_1h" to refresh, "brush" to "$page", "web_location" to "1430650", "feed_version" to "V8", "homepage_ver" to "1"), sign = true) } ?: throw IOException("网络响应较慢，请稍后重试")
+            } catch (e: ApiException) { json("/x/web-interface/popular", params) }
             "排行榜" -> json("/x/web-interface/ranking/v2", mapOf("rid" to "$region", "type" to "all"))
             "分区" -> try {
                 json("/x/web-interface/region/feed/rcmd", mapOf("display_id" to "$page", "request_cnt" to "20", "from_region" to "$region", "device" to "web", "plat" to "30"))
@@ -129,7 +130,10 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     suspend fun related(bvid: String) = json("/x/web-interface/archive/related", mapOf("bvid" to bvid)).arr("items").objects().map(Video::api)
     private fun streams(array: JSONArray) = array.objects().mapNotNull { j ->
         val url = j.optString("baseUrl", j.optString("base_url")).https()
-        if (url.isBlank()) null else Stream(url, (j.optJSONArray("backupUrl") ?: j.arr("backup_url")).let { a -> (0 until a.length()).map { a.optString(it).https() }.filter { it.isNotBlank() } }, j.optInt("id"), j.optString("codecs"), j.optLong("bandwidth"), j.optString("mimeType", j.optString("mime_type", "video/mp4")))
+        if (url.isBlank()) null else Stream(url, (j.optJSONArray("backupUrl") ?: j.arr("backup_url")).let { a -> (0 until a.length()).map { a.optString(it).https() }.filter { it.isNotBlank() } }, j.optInt("id"), j.optString("codecs"), j.optLong("bandwidth"), j.optString("mimeType", j.optString("mime_type", "video/mp4")),
+            (j.optJSONObject("SegmentBase") ?: j.obj("segment_base")).let { it.optString("Initialization", it.optString("initialization")) },
+            (j.optJSONObject("SegmentBase") ?: j.obj("segment_base")).let { it.optString("indexRange", it.optString("index_range")) },
+            j.optInt("width"), j.optInt("height"), j.optString("frameRate", j.optString("frame_rate")))
     }
     suspend fun play(video: Video, episode: Episode, requested: Int = store.settings.value.quality, forceAvc: Boolean = false): PlayPlan {
         val p = mutableMapOf("cid" to "${episode.cid}", "qn" to "${if (requested == 0) 127 else requested}", "fnval" to "4048", "fnver" to "0", "fourk" to "1")
@@ -145,10 +149,10 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         if (videos.isNotEmpty()) {
             val candidates = if (forceAvc) videos.filter { it.codec.startsWith("avc", ignoreCase = true) } else videos
             if (candidates.isEmpty()) throw ApiException(-3, "当前内容没有可用的 H.264 兼容视频流")
-            val selected = Quality.select(candidates, requested, !forceAvc && store.settings.value.preferHevc)
+            val selected = Quality.select(candidates, if (requested == 0) 80 else requested, !forceAvc && store.settings.value.preferHevc)
             val sounds = streams(dash.arr("audio"))
             val audio = sounds.filter { it.codec.startsWith("mp4a") }.ifEmpty { sounds }.maxByOrNull { it.bandwidth }
-            return PlayPlan(selected, audio, candidates.map { it.quality }.distinct().sortedDescending(), j.optLong("timelength"), j.optInt("is_preview") == 1, sounds)
+            return PlayPlan(selected, audio, candidates.map { it.quality }.distinct().sortedDescending(), j.optLong("timelength"), j.optInt("is_preview") == 1, sounds, candidates, requested == 0)
         }
         val durl = j.arr("durl").objects()
         if (durl.size > 1) throw ApiException(-3, "该视频仅返回分段旧格式，请在官方网页播放")
@@ -294,13 +298,14 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         }
     }
     suspend fun messageHistory(talker: Long): List<MessageItem> = json("/svr_sync/v1/svr_sync/fetch_session_msgs", mapOf("talker_id" to "$talker", "session_type" to "1", "size" to "30", "build" to "0", "mobi_app" to "web"), host = "https://api.vc.bilibili.com", referer = "https://message.bilibili.com/").arr("messages").objects().reversed().map { m -> MessageItem(if (m.optLong("sender_uid").toString() == cookies.value("DedeUserID")) "我" else "对方", runCatching { JSONObject(m.optString("content")).optString("content", "[非文字消息]") }.getOrDefault("[非文字消息]")) }
-    suspend fun uploads(mid: Long, page: Int): FeedPage {
-        val j = json("/x/space/wbi/arc/search", mapOf("mid" to "$mid", "pn" to "$page", "ps" to "30", "order" to "pubdate"), sign = true, referer = "https://space.bilibili.com/$mid/")
-        val videos = j.obj("list").arr("vlist").objects().map { Video.api(it).copy(duration = durationValue(it.optString("length"))) }
+    suspend fun uploads(mid: Long, page: Int, keyword: String = ""): FeedPage {
+        val j = json("/x/space/wbi/arc/search", mapOf("mid" to "$mid", "pn" to "$page", "ps" to "30", "order" to "pubdate", "keyword" to keyword.trim()), sign = true, referer = "https://space.bilibili.com/$mid/")
+        val videos = j.obj("list").arr("vlist").objects().map { Video.api(it).copy(mid = mid, duration = durationValue(it.optString("length"))) }
         val total = j.obj("page").optLong("count", -1)
-        return FeedPage(videos, more = videos.isNotEmpty() && if (total >= 0) page.toLong() * 30 < total else videos.size == 30)
+        return FeedPage(videos, more = videos.isNotEmpty() && if (total >= 0) page.toLong() * 30 < total else videos.size == 30, total = total)
     }
-    suspend fun creatorProfile(mid: Long): CreatorProfile {
+    suspend fun creatorProfile(mid: Long): CreatorProfile = profileMutex.withLock {
+        profiles[mid]?.takeIf { System.currentTimeMillis() - it.first < 180000 }?.let { return@withLock it.second }
         require(mid > 0) { "用户信息不完整" }
         val referer = "https://space.bilibili.com/$mid/"
         val data = try { json("/x/web-interface/card", mapOf("mid" to "$mid"), referer = referer) }
@@ -309,7 +314,10 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
             json("/x/space/wbi/acc/info", mapOf("mid" to "$mid"), sign = true, referer = referer)
         }
         if ((data.optJSONObject("card") ?: data).optString("name").isBlank()) throw ApiException(-3, "用户资料暂未完整返回，请稍后重试")
-        return CreatorProfile.parse(mid, data)
+        CreatorProfile.parse(mid, data).also {
+            profiles[mid] = System.currentTimeMillis() to it
+            if (profiles.size > 32) profiles.remove(profiles.keys.first())
+        }
     }
     suspend fun searchCreators(name: String): List<CreatorProfile> {
         require(name.isNotBlank()) { "用户名不能为空" }
@@ -350,7 +358,22 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     }
     suspend fun favorite(aid: Long, folder: Long, add: Boolean) { post("/x/v3/fav/resource/deal", mapOf("rid" to "$aid", "type" to "2", (if (add) "add_media_ids" else "del_media_ids") to "$folder")) }
     suspend fun watchLater(aid: Long, add: Boolean) { post(if (add) "/x/v2/history/toview/add" else "/x/v2/history/toview/del", mapOf("aid" to "$aid")) }
-    suspend fun follow(mid: Long, add: Boolean) { require(mid > 0); post("/x/relation/modify", mapOf("fid" to "$mid", "act" to if (add) "1" else "2", "re_src" to "11"), referer = "https://space.bilibili.com/$mid") }
+    private fun accountMid() = cookies.value("DedeUserID").toLongOrNull()?.takeIf { it > 0 } ?: cookies.cachedUser()?.mid?.takeIf { it > 0 }
+    suspend fun followingUsers(page: Int): CreatorPage {
+        val account = accountMid() ?: throw ApiException(-101, "请先登录后查看关注列表")
+        require(page > 0)
+        val j = json("/x/relation/followings", mapOf("vmid" to "$account", "pn" to "$page", "ps" to "50", "order" to "desc", "order_type" to "attention"), referer = "https://space.bilibili.com/$account/fans/follow")
+        val total = j.optLong("total", -1)
+        if (j.optJSONArray("list") == null && !(j.has("total") && total == 0L && j.isNull("list"))) throw ApiException(-3, "平台未完整返回关注列表，请稍后重试")
+        val list = j.arr("list").objects().filter { it.optLong("mid") > 0 }.map { CreatorProfile.parse(it.optLong("mid"), it) }.distinctBy { it.mid }
+        return CreatorPage(list, total, list.isNotEmpty() && if (total >= 0) page * 50L < total else list.size == 50)
+    }
+    suspend fun follow(mid: Long, add: Boolean) {
+        require(mid > 0)
+        val account = accountMid()?.toString().orEmpty()
+        post("/x/relation/modify", mapOf("fid" to "$mid", "act" to if (add) "1" else "2", "re_src" to "11"), referer = "https://space.bilibili.com/$mid")
+        if (accountMid()?.toString().orEmpty() == account) relationChanges.tryEmit(RelationChange(account, mid, add))
+    }
     suspend fun report(aid: Long, cid: Long, progress: Long) { if (cookies.value("SESSDATA").isNotBlank()) post("/x/v2/history/report", mapOf("aid" to "$aid", "cid" to "$cid", "progress" to "$progress", "platform" to "android")) }
     suspend fun sendDanmaku(cid: Long, text: String, positionMs: Long) { post("/x/v2/dm/post", mapOf("type" to "1", "oid" to "$cid", "msg" to text, "progress" to "$positionMs", "color" to "16777215", "fontsize" to "25", "pool" to "0", "mode" to "1", "rnd" to "${System.currentTimeMillis() * 1000}")) }
     suspend fun sendComment(aid: Long, text: String, root: Long = 0, parent: Long = 0) {

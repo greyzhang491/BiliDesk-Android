@@ -53,7 +53,7 @@ data class CreatorProfile(val mid: Long, val name: String, val avatar: String, v
             val source = card ?: data
             fun count(j: JSONObject, key: String): Long? = when (val value = j.opt(key)) { is Number -> value.toLong(); is String -> value.toLongOrNull(); else -> null }?.takeIf { it >= 0 }
             val level = if (card != null) source.obj("level_info").optInt("current_level", -1) else source.optInt("level", -1)
-            return CreatorProfile(mid, source.optString("name").ifBlank { "用户 $mid" }, source.optString("face").https(), source.optString("sign"), level.takeIf { it in 0..6 },
+            return CreatorProfile(mid, source.optString("name", source.optString("uname")).ifBlank { "用户 $mid" }, source.optString("face").https(), source.optString("sign"), level.takeIf { it in 0..6 },
                 source.obj("vip").optInt("status", source.obj("vip").optInt("vipStatus")) == 1,
                 source.obj("Official").optString("desc").ifBlank { source.obj("official").optString("title") },
                 count(data, "follower") ?: count(source, "fans"), count(source, "attention") ?: count(data, "following"), count(data, "archive_count"))

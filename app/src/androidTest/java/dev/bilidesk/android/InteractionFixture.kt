@@ -32,7 +32,7 @@ import android.os.SystemClock
  * Push the Media3 public test sample to the app's external-files directory, then use
  * am instrument ... -e playback_fixture true ... . This does not test Bilibili networking.
  */
-class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false, richComments: Boolean = false): AutoCloseable {
+class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false, richComments: Boolean = false, networkMedia: Boolean = false, private val creatorData: Boolean = false): AutoCloseable {
     private val context = instrumentation.targetContext
     private val previousApi = Graph.api
     private val previousPlayer = Graph.player
@@ -46,10 +46,12 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
     val readRequests = CopyOnWriteArrayList<String>()
     val writeForms = ConcurrentHashMap<String, Map<String, String>>()
     private var following = true
+    private val followingIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>().apply { add(90); add(91) }
     private val addedFolders = CopyOnWriteArrayList<JSONObject>()
     private val commentLikes = ConcurrentHashMap<Long, Boolean>()
     private val commentDislikes = ConcurrentHashMap<Long, Boolean>()
-    private val rich = if (richComments) CommentTestData(context) { id -> if (commentLikes[id] == true) 1 else if (commentDislikes[id] == true) 2 else 0 } else null
+    val network = if (networkMedia) NetworkTestMedia(context) else null
+    private val rich = if (richComments || creatorData) CommentTestData(context) { id -> if (commentLikes[id] == true) 1 else if (commentDislikes[id] == true) 2 else 0 } else null
     @Volatile var failNextCommentRead = false
     @Volatile var loseNextCommentWriteResponse = false
     val requestedQualities = CopyOnWriteArrayList<Int>()
@@ -79,6 +81,7 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
             val request = chain.request()
             val url = request.url
             if (request.method == "GET") readRequests.add(url.toString())
+            if (network != null && url.host.endsWith(".fixture.invalid")) return@addInterceptor network.respond(request)
             if (downloadMedia && url.host == "fixture.invalid") {
                 val payload = if (musicSample != null) (if (url.encodedPath.contains("audio")) musicSample.audio else musicSample.video) else sample
                 val range = Regex("bytes=(\\d+)-(\\d+)").matchEntire(request.header("Range").orEmpty())!!
@@ -119,7 +122,7 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 fun field(name: String) = (0 until (form?.size ?: 0)).firstOrNull { form!!.name(it) == name }?.let { form!!.value(it) }
                 writeForms[path] = (0 until (form?.size ?: 0)).associate { form!!.name(it) to form.value(it) }
                 when (path) {
-                    "/x/relation/modify" -> following = field("act") == "1"
+                    "/x/relation/modify" -> { following = field("act") == "1"; if (creatorData) { val mid = field("fid")!!.toLong(); if (following) followingIds.add(mid) else followingIds.remove(mid) } }
                     "/x/v2/reply/action" -> { val id = field("rpid")!!.toLong(); commentLikes[id] = field("action") == "1"; if (commentLikes[id] == true) commentDislikes[id] = false }
                     "/x/v2/reply/hate" -> { val id = field("rpid")!!.toLong(); commentDislikes[id] = field("action") == "1"; if (commentDislikes[id] == true) commentLikes[id] = false }
                     "/x/v3/fav/folder/add" -> addedFolders.add(JSONObject().put("id", 501 + addedFolders.size).put("title", field("title")).put("fav_state", 0))
@@ -148,7 +151,7 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 }
                 "/x/player/wbi/playurl" -> {
                     requestedQualities.add(url.queryParameter("qn")?.toIntOrNull() ?: 0)
-                    if (musicSample == null) JSONObject().put("timelength", duration).put("dash", JSONObject().put("video", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/sample.mp4" else Uri.fromFile(sample).toString()).put("id", 32).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000))).put("quality", 32))
+                    if (network != null) network.plan() else if (musicSample == null) JSONObject().put("timelength", duration).put("dash", JSONObject().put("video", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/sample.mp4" else Uri.fromFile(sample).toString()).put("id", 32).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000))).put("quality", 32))
                     else JSONObject().put("timelength", duration).put("dash", JSONObject()
                         .put("video", JSONArray(listOf(32, 64).map { q -> JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/video-$q.mp4" else Uri.fromFile(musicSample.video).toString()).put("id", q).put("backupUrl", JSONArray().put("https://fixture.invalid/unwanted-video-probe")).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000) }))
                         .put("audio", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/audio.m4a" else Uri.fromFile(musicSample.audio).toString()).put("id", 30280).put("codecs", "mp4a.40.2").put("mimeType", "audio/mp4").put("bandwidth", 128000))))
@@ -156,13 +159,19 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 "/x/player/wbi/v2" -> JSONObject().put("subtitle", JSONObject().put("subtitles", if (musicMedia && !second) JSONArray().put(JSONObject().put("lan", "zh-CN").put("subtitle_url", "https://aisubtitle.hdslb.com/fixture-lyrics.json")) else JSONArray()))
                 "/x/web-interface/archive/related" -> JSONArray().put(video(false)).put(video(true))
                 "/x/web-interface/archive/has/like" -> if (liked) 1 else 0
-                "/x/relation" -> JSONObject().put("attribute", if (following) 2 else 0)
+                "/x/relation" -> JSONObject().put("attribute", if (if (creatorData) (url.queryParameter("fid")?.toLongOrNull() ?: 0L) in followingIds else following) 2 else 0)
+                "/x/relation/followings" -> JSONObject().put("total", followingIds.size).put("list", JSONArray(followingIds.sorted().map { mid -> JSONObject().put("mid", mid).put("uname", rich!!.name(mid)).put("face", rich.avatar(mid)).put("sign", "UI DEMO · 独立测试关注资料") }))
                 "/x/v3/fav/folder/add" -> addedFolders.last()
                 "/x/v3/fav/folder/created/list-all" -> JSONObject().put("list", JSONArray().put(JSONObject().put("id", 500).put("title", "模拟收藏夹").put("fav_state", if (favorite) 1 else 0)).apply { addedFolders.forEach { put(it) } })
                 "/x/v3/fav/resource/list" -> JSONObject().put("has_more", false).put("medias", JSONArray().put(video(false)).put(video(true)))
                 "/x/web-interface/wbi/search/type" -> if (rich != null && url.queryParameter("search_type") == "bili_user") rich.searchUsers() else JSONObject().put("numPages", 1).put("result", JSONArray().put(video(false)).put(video(true)))
                 "/x/web-interface/card" -> rich?.profile(url.queryParameter("mid")!!.toLong()) ?: JSONObject()
-                "/x/space/wbi/arc/search" -> rich?.uploads(url.queryParameter("mid")!!.toLong()) ?: JSONObject()
+                "/x/space/wbi/arc/search" -> (rich?.uploads(url.queryParameter("mid")!!.toLong()) ?: JSONObject()).apply {
+                    if (creatorData) {
+                        val videos = getJSONObject("list").getJSONArray("vlist").objects().filter { it.optString("title").contains(url.queryParameter("keyword").orEmpty()) }
+                        getJSONObject("list").put("vlist", JSONArray(videos)); getJSONObject("page").put("count", videos.size)
+                    }
+                }
                 "/x/web-interface/archive/coins" -> JSONObject().put("multiply", coins)
                 "/x/v2/reply/main" -> rich?.main(url.queryParameter("next")) ?: JSONObject().put("cursor", JSONObject().put("next", 1).put("is_end", true).put("all_count", 45)).put("replies", JSONArray().put(comment(700, "浏览评论时视频应持续播放", root = true)))
                 "/x/v2/reply/reply" -> rich?.replies(url.queryParameter("pn")) ?: JSONObject().put("page", JSONObject().put("count", 1)).put("replies", JSONArray().put(comment(701, "楼中楼也不中断播放")))
@@ -178,7 +187,7 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
     private fun video(second: Boolean) = JSONObject().put("bvid", if (second) "BV17x411w7KC" else "BV156xx6wEff").put("aid", if (second) 170001 else 100001)
         .put("pic", musicSample?.let { Uri.fromFile(if (second) it.coverB else it.coverA).toString() }.orEmpty())
         .put("title", if (second) "交互测试样片 B" else "交互测试样片 A").put("duration", duration / 1000)
-        .put("owner", JSONObject().put("name", "独立设备回归样片").put("mid", 80)).put("stat", JSONObject().put("view", 12).put("danmaku", 40))
+        .put("pubdate", 1700000000).put("owner", JSONObject().put("name", if (creatorData) rich!!.name(90) else "独立设备回归样片").put("mid", if (creatorData) 90 else 80).put("face", if (creatorData) rich!!.avatar(90) else "")).put("stat", JSONObject().put("view", 12).put("danmaku", 40))
     private fun comment(id: Long, text: String, root: Boolean = false) = JSONObject().put("rpid", id).put("ctime", 1700000000 + id).put("like", if (commentLikes[id] == true) 4 else 3).put("action", if (commentLikes[id] == true) 1 else 0)
         .put("member", JSONObject().put("uname", "评论回归样例").put("mid", 90)).put("content", JSONObject().put("message", text)).put("rcount", if (root) 1 else 0)
         .put("replies", if (root) JSONArray().put(JSONObject().put("rpid", 701).put("member", JSONObject().put("uname", "回复样例")).put("content", JSONObject().put("message", "预览回复"))) else JSONArray())

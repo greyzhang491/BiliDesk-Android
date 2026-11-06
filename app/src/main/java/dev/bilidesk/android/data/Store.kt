@@ -24,7 +24,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 data class Settings(
-    val theme: Int = 0, val quality: Int = 80, val preferHevc: Boolean = true,
+    val theme: Int = 0, val quality: Int = 0, val preferHevc: Boolean = true,
     val danmaku: Boolean = true, val colored: Boolean = true, val scroll: Boolean = true,
     val top: Boolean = true, val bottom: Boolean = true, val opacity: Float = .85f,
     val area: Float = .5f, val fontSize: Float = 18f, val dmSpeed: Float = 1f,
@@ -41,10 +41,16 @@ data class Settings(
 class Store(context: Context) {
     private val settingsLock = Any()
     private val prefs = context.getSharedPreferences("preferences", Context.MODE_PRIVATE).apply {
+        if (!getBoolean("adaptiveDefault", false)) {
+            val edit = edit().putBoolean("adaptiveDefault", true)
+            if (getInt("quality", 80) == 80) edit.putInt("quality", 0)
+            edit.apply()
+        }
         if (getInt("cachePolicyVersion", 0) < 1) edit().putBoolean("shortCache", false).putInt("cachePolicyVersion", 1).apply()
     }
     private val maintenance = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val files = context.filesDir
+    val feedSnapshots = FeedSnapshots(File(context.cacheDir, "feed-snapshots"))
     private val _settings = MutableStateFlow(readSettings())
     val settings = _settings.asStateFlow()
     private val _history = MutableStateFlow(readList("history.json").objects().mapNotNull { j -> runCatching { HistoryEntry(Video.from(j.obj("video")), j.getLong("cid"), j.getLong("position"), j.getLong("at")) }.getOrNull() })
@@ -57,7 +63,7 @@ class Store(context: Context) {
     val agreed get() = prefs.getBoolean("agreed", false)
     fun agree() { prefs.edit().putBoolean("agreed", true).apply() }
     private fun readSettings() = Settings(
-        theme = prefs.getInt("theme", 0), quality = prefs.getInt("quality", 80), preferHevc = prefs.getBoolean("hevc", true),
+        theme = prefs.getInt("theme", 0), quality = prefs.getInt("quality", 0), preferHevc = prefs.getBoolean("hevc", true),
         danmaku = prefs.getBoolean("danmaku", true), colored = prefs.getBoolean("colored", true), scroll = prefs.getBoolean("scroll", true),
         top = prefs.getBoolean("top", true), bottom = prefs.getBoolean("bottom", true), opacity = prefs.getFloat("opacity", .85f),
         area = prefs.getFloat("area", .5f), fontSize = prefs.getFloat("fontSize", 18f), dmSpeed = prefs.getFloat("dmSpeed", 1f),

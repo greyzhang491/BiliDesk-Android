@@ -58,6 +58,8 @@ fun browse(context: Context, url: String) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalAppWindow provides AppWindow(maxWidth.value, maxHeight.value)) {
             BiliAppContent(vm, pip, onPip)
+            val creator by vm.creator.collectAsStateWithLifecycle()
+            creator?.let { request -> CreatorProfileDialog(request.seed, vm, vm::closeCreator, { video -> vm.closeCreator(); vm.openVideo(video) }, current = request.current, onSelection = vm::playCreatorVideo) }
         }
     }
 }
@@ -89,7 +91,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
         topBar = { if (route.name != "music") {
             TopAppBar(title = {
                 if (root) RootToolbar(vm, user, library = route.name == "library")
-                else Text(route.label.ifBlank { when(route.name) { "search" -> "搜索"; "music_search" -> "搜索歌曲"; "settings" -> "设置"; "login" -> "登录 BiliDesk"; "folders" -> "我的收藏"; "downloads" -> "离线缓存"; "messages" -> "消息"; "about" -> "关于 BiliDesk"; else -> "媒体库" } }, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                else Text(route.label.ifBlank { when(route.name) { "search" -> "搜索"; "music_search" -> "搜索歌曲"; "settings" -> "设置"; "login" -> "登录 BiliDesk"; "folders" -> "我的收藏"; "following" -> "我的关注"; "downloads" -> "离线缓存"; "messages" -> "消息"; "about" -> "关于 BiliDesk"; else -> "媒体库" } }, fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }, navigationIcon = { if (!root) IconButton(onClick = { if (!vm.back()) vm.root("home") }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
                 scrollBehavior = if (root) topScroll else null, expandedHeight = if (root) 56.dp else 64.dp,
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface, scrolledContainerColor = MaterialTheme.colorScheme.surface))
@@ -115,6 +117,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
                 "music" -> MusicHomeScreen(vm, musicSplit)
                 "music_search" -> MusicSearchScreen(vm)
                 "music_library" -> MusicLibraryContent(vm)
+                "following" -> FollowingScreen(vm)
                 "folders" -> FolderScreen(vm)
                 "feed" -> FeedRoute(vm, route)
                 "downloads" -> DownloadsScreen(vm)
@@ -145,7 +148,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
     var tab by rememberSaveable { mutableStateOf("推荐") }
     key(tab) { VideoFeed(vm, header = {
         Tabs(listOf("推荐", "热门", "排行榜", "直播", "追番"), tab) { tab = it }
-    }, preferNewOnRefresh = tab in listOf("推荐", "热门"), load = { page -> when(tab) { "直播" -> Graph.api.liveList(page); "追番" -> Graph.api.bangumi(page); else -> Graph.api.feed(tab, page) } }) }
+    }, preferNewOnRefresh = tab in listOf("推荐", "热门"), snapshotKey = "home:$tab", load = { page -> when(tab) { "直播" -> Graph.api.liveList(page); "追番" -> Graph.api.bangumi(page); else -> Graph.api.feed(tab, page) } }) }
 }
 
 // v2 IDs from upstream PartitionCatalog; these differ from the old ranking region IDs.
@@ -154,7 +157,7 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     var region by rememberSaveable { mutableIntStateOf(0) }
     key(region) { VideoFeed(vm, header = {
         Tabs(regions.map { it.second }, regions.first { it.first == region }.second) { selected -> region = regions.first { it.second == selected }.first }
-    }, load = { p -> if (region == 13) Graph.api.bangumi(p) else Graph.api.feed(if (region == 0) "热门" else "分区", p, region) }) }
+    }, snapshotKey = "region:$region", load = { p -> if (region == 13) Graph.api.bangumi(p) else Graph.api.feed(if (region == 0) "热门" else "分区", p, region) }) }
 }
 
 @Composable fun Tabs(tabs: List<String>, selected: String, onClick: (String) -> Unit) {
@@ -167,15 +170,23 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     }
 }
 
-@Composable fun VideoFeed(vm: AppViewModel, modifier: Modifier = Modifier, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false, load: suspend (Int) -> FeedPage) {
-    RefreshableVideoFeed(modifier, onVideo = { vm.openVideo(it) }, onShorts = { vm.openShorts(queue = it) }, header = header, preferNewOnRefresh = preferNewOnRefresh, load = load)
+@Composable fun VideoFeed(vm: AppViewModel, modifier: Modifier = Modifier, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false, snapshotKey: String = "", load: suspend (Int) -> FeedPage) {
+    val user by vm.user.collectAsStateWithLifecycle()
+    val epoch by vm.networkEpoch.collectAsStateWithLifecycle()
+    key(snapshotKey, user?.mid) { RefreshableVideoFeed(modifier, onVideo = { vm.openVideo(it) }, onShorts = { vm.openShorts(queue = it) }, header = header, preferNewOnRefresh = preferNewOnRefresh, snapshotKey = snapshotKey.takeIf { it.isNotBlank() }?.let { "${user?.mid ?: 0}:$it" }.orEmpty(), networkEpoch = epoch, onCreator = vm::openCreator, load = load) }
 }
 
-@Composable fun RefreshableVideoFeed(modifier: Modifier = Modifier, onVideo: (Video) -> Unit, onShorts: ((List<Video>) -> Unit)? = null, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false, load: suspend (Int) -> FeedPage) {
+@Composable fun RefreshableVideoFeed(modifier: Modifier = Modifier, onVideo: (Video) -> Unit, onShorts: ((List<Video>) -> Unit)? = null, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false,
+    snapshotKey: String = "", networkEpoch: Int = 0, initialPage: Int = 1, initialNextPage: Int = initialPage,
+    highlightKey: String = "", revealKey: String = "", onCreator: ((Video) -> Unit)? = null,
+    onSelection: ((Video, List<Video>, Int) -> Unit)? = null, initial: List<Video> = emptyList(),
+    load: suspend (Int) -> FeedPage) {
     val scope = rememberCoroutineScope()
     val grid = rememberLazyGridState()
     val loader by rememberUpdatedState(load)
-    val pager = remember { VideoFeedPager({ loader(it) }, preferNewOnRefresh = preferNewOnRefresh) }
+    val pager = remember { VideoFeedPager({ loader(it) }, initial, preferNewOnRefresh = preferNewOnRefresh, initialPage = initialPage, initialNextPage = initialNextPage,
+        restore = { if (snapshotKey.isBlank()) emptyList() else Graph.store.feedSnapshots.read(snapshotKey) },
+        save = { if (snapshotKey.isNotBlank()) Graph.store.feedSnapshots.write(snapshotKey, it) }) }
     val content by pager.state.collectAsStateWithLifecycle()
     val s by Graph.store.settings.collectAsStateWithLifecycle()
     var displaySettings by remember { mutableStateOf(false) }
@@ -185,7 +196,11 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
             if (pager.load(reset) && reset) grid.scrollToItem(0)
         }
     }
-    LaunchedEffect(Unit) { fetch() }
+    LaunchedEffect(Unit) { if (initial.isEmpty()) fetch() }
+    LaunchedEffect(networkEpoch) { if (networkEpoch > 0 && content.error != null && !content.busy) fetch(content.refreshFailed || content.cached) }
+    LaunchedEffect(revealKey) {
+        if (revealKey.isNotBlank()) content.videos.indexOfFirst { it.key == revealKey }.takeIf { it >= 0 }?.let { grid.scrollToItem(it + 1) }
+    }
     LaunchedEffect(content.revision) { if (content.revision > 0) grid.scrollToItem(0) }
     if (displaySettings) AlertDialog(onDismissRequest = { displaySettings = false }, title = { Text("视频排列") }, text = { Column(Modifier.verticalScroll(rememberScrollState())) { FeedDisplaySettings(s, Graph.store::change) } }, confirmButton = { TextButton(onClick = { displaySettings = false }) { Text("完成") } })
     BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
@@ -204,10 +219,11 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
                         IconButton(onClick = { displaySettings = true }, Modifier.size(40.dp)) { Icon(Icons.Default.GridView, "调整视频排列", Modifier.size(20.dp)) }
                         IconButton(onClick = { fetch(true) }, Modifier.size(40.dp), enabled = !content.busy) { Icon(Icons.Default.Refresh, "刷新视频列表", Modifier.size(20.dp)) }
                     }
+                    if (content.cached) Text("正在显示上次浏览的内容，联网后将更新", Modifier.padding(4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (content.refreshFailed && content.videos.isNotEmpty()) TextButton(onClick = { fetch(true) }) { Text("刷新失败，已保留原内容 · 重试", color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     if (content.unchanged) Text("这次暂时没有新的推荐", Modifier.padding(4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } }
-                items(content.videos, key = { "${content.revision}:${it.key}" }) { video -> VideoCard(video, s.feedDensity) { onVideo(video) } }
+                items(content.videos, key = { "${content.revision}:${it.key}" }) { video -> VideoCard(video, s.feedDensity, onCreator?.let { { it(video) } }, current = video.key == highlightKey) { onSelection?.invoke(video, content.videos, content.nextPage) ?: onVideo(video) } }
                 item(key = "feed-footer-${content.videos.size}", span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     when {
                         content.busy -> CircularProgressIndicator(Modifier.padding(20.dp).size(24.dp), strokeWidth = 2.dp)
@@ -221,10 +237,11 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     }
 }
 
-@Composable fun VideoCard(video: Video, density: Int = 1, onClick: () -> Unit) {
+@Composable fun VideoCard(video: Video, density: Int = 1, onCreator: (() -> Unit)? = null, current: Boolean = false, onClick: () -> Unit) {
     Column(Modifier.clip(RoundedCornerShape(7.dp)).clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(video.cover, video.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (current) Text("当前播放", Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 7.dp, vertical = 3.dp), color = MaterialTheme.colorScheme.onPrimary, fontSize = 10.sp)
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(30.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .62f)))))
             Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically) { Icon(if (video.kind == "live") Icons.Default.Sensors else Icons.Default.PlayCircleOutline, null, Modifier.size(13.dp), Color.White); Text(" ${countLabel(video.plays)}", color = Color.White, fontSize = 10.sp) }
@@ -232,7 +249,7 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
             }
         }
         Text(video.title, Modifier.padding(top = if (density == 0) 8.dp else 6.dp, start = 1.dp, end = 1.dp).heightIn(min = if (density == 2) 32.dp else 36.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = if (density == 0) 14.sp else if (density == 2) 12.sp else 13.sp, lineHeight = if (density == 2) 17.sp else 19.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
-        Row(Modifier.padding(top = 4.dp, start = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.then(if (onCreator != null && video.mid > 0) Modifier.clickable(onClick = onCreator).semantics { contentDescription = "查看${video.author}的主页" } else Modifier).padding(top = 4.dp, start = 1.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(16.dp, 11.dp).border(.7.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .65f), RoundedCornerShape(2.dp)), contentAlignment = Alignment.Center) { Text("UP", fontSize = 6.sp, lineHeight = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(video.author.ifBlank { if (video.kind == "season") "番剧" else "哔哩哔哩" }, Modifier.padding(start = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 10.sp)
         }
@@ -281,7 +298,8 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
                 else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { items(local, key = { it.video.key }) { h -> CompactVideo(h.video, "上次看到 ${timeLabel(h.positionMs / 1000)}") { vm.openVideo(h.video) } } }
             } else { val user by vm.user.collectAsStateWithLifecycle(); if (user == null) LoginGate(vm, "登录后同步云端历史") else VideoFeed(vm, load = { Graph.api.cloudHistory(it) }) }
         }
-    } else VideoFeed(vm, load = { p -> when {
+    } else if (route.argument.startsWith("space:")) CreatorScreen(CreatorProfile(route.argument.substringAfter(':').toLong(), route.label, ""), vm)
+    else VideoFeed(vm, load = { p -> when {
         route.argument.startsWith("folder:") -> Graph.api.favorites(route.argument.substringAfter(':').toLong(), p)
         route.argument.startsWith("space:") -> Graph.api.uploads(route.argument.substringAfter(':').toLong(), p)
         route.argument == "myBangumi" -> Graph.api.bangumi(p, true)

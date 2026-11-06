@@ -51,6 +51,7 @@ import dev.bilidesk.android.data.User
                 }
             }
         }
+        item { Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface) { MenuRow(Icons.Outlined.PeopleOutline, "我的关注", "查看关注的 UP 主与投稿") { vm.requireLogin { vm.navigate("following") } } } }
         item {
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

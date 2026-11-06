@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.Mutex
 data class VideoFeedContent(
     val videos: List<Video> = emptyList(), val nextPage: Int = 1, val more: Boolean = true,
     val busy: Boolean = false, val refreshing: Boolean = false, val error: String? = null,
-    val refreshFailed: Boolean = false, val revision: Int = 0, val unchanged: Boolean = false
+    val refreshFailed: Boolean = false, val revision: Int = 0, val unchanged: Boolean = false, val cached: Boolean = false
 )
 
 /** One request at a time. Failures preserve both content and the page to retry. */
@@ -17,12 +17,17 @@ class VideoFeedPager(
     private val loadPage: suspend (Int) -> FeedPage,
     initial: List<Video> = emptyList(),
     private val accept: (Video) -> Boolean = { true },
-    private val preferNewOnRefresh: Boolean = false
+    private val preferNewOnRefresh: Boolean = false,
+    private val initialPage: Int = 1,
+    initialNextPage: Int = initialPage,
+    private val restore: suspend () -> List<Video> = { emptyList() },
+    private val save: suspend (List<Video>) -> Unit = {}
 ) {
     private val gate = Mutex()
+    private var restored = false
     private val refreshVersion = java.util.concurrent.atomic.AtomicInteger()
     private val waitingRefresh = java.util.concurrent.atomic.AtomicInteger()
-    private val _state = MutableStateFlow(VideoFeedContent(videos = initial.filter(accept).distinctBy { it.key }))
+    private val _state = MutableStateFlow(VideoFeedContent(videos = initial.filter(accept).distinctBy { it.key }, nextPage = initialNextPage))
     val state = _state.asStateFlow()
 
     suspend fun load(reset: Boolean = false): Boolean {
@@ -33,10 +38,17 @@ class VideoFeedPager(
         } else if (waitingRefresh.get() > 0 || !gate.tryLock()) return false
         try {
             if (reset && version != refreshVersion.get()) return false
+            if (!restored) {
+                restored = true
+                if (_state.value.videos.isEmpty()) {
+                    val cached = restore().filter(accept).distinctBy { it.key }
+                    if (cached.isNotEmpty()) _state.value = _state.value.copy(videos = cached, cached = true)
+                }
+            }
             val before = _state.value
             if (!reset && !before.more) return false
             _state.value = before.copy(busy = true, refreshing = reset, error = null, refreshFailed = false)
-            val page = if (reset) 1 else before.nextPage
+            val page = if (reset) initialPage else before.nextPage
             try {
                 var result = loadPage(page)
                 var lastPage = page
@@ -52,15 +64,16 @@ class VideoFeedPager(
                         incoming.addAll(extra)
                     }
                 }
-                val previous = if (reset) emptyList() else before.videos
+                val previous = if (reset || before.cached) emptyList() else before.videos
                 val ordered = if (reset && preferNewOnRefresh) incoming.sortedBy { it.key in seen } else incoming
                 val next = (previous + ordered).distinctBy { it.key }
                 // Repeated/empty pages must not cause an unbounded auto-load loop.
                 _state.value = VideoFeedContent(next, lastPage + 1, result.more && next.size > previous.size, revision = before.revision + if (reset) 1 else 0, unchanged = reset && preferNewOnRefresh && incoming.none { it.key !in seen })
+                save(next)
                 return true
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _state.value = before.copy(error = e.message ?: "加载失败", refreshFailed = reset)
+                _state.value = before.copy(error = networkMessage(e), refreshFailed = reset)
                 return false
             }
         } finally {
