@@ -20,3 +20,16 @@ local.properties
 .DS_Store
 Thumbs.db
 captures/
+
+# Local hand-off records and private validation must never be published.
+/LOCAL-ONLY.md
+/docs/LOCAL-*.md
+/validation/*-private.json
+/outputs/
+/work/
+*.bdks
+*.resume
+*.cookies
+*.sqlite
+*.sqlite3
+*.db

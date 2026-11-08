@@ -74,6 +74,8 @@ import dev.bilidesk.android.data.User
         }
         item {
             LibraryGroup("偏好与帮助") {
+                MenuRow(Icons.Outlined.CloudSync, "跨设备同步", "同步歌单、队列与播放进度") { vm.navigate("music_sync", label = "跨设备同步") }
+                LibraryDivider()
                 MenuRow(Icons.Outlined.Settings, "设置", "播放、弹幕和外观") { vm.navigate("settings") }
                 LibraryDivider()
                 MenuRow(Icons.Outlined.Info, "关于 BiliDesk", "开源与致谢") { vm.navigate("about") }

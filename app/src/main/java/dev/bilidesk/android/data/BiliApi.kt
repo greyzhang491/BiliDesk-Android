@@ -96,8 +96,24 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
             } catch (e: ApiException) { if (e.code == 62013) return FeedPage(emptyList(), more = false) else throw e }
             else -> json("/x/web-interface/popular", params)
         }
-        val list = (j.optJSONArray("item") ?: j.optJSONArray("list") ?: j.optJSONArray("archives") ?: JSONArray()).objects().filter { it.optInt("aid", it.optInt("id")) > 0 || it.optString("bvid").isNotBlank() }.map(Video::api).distinctBy { it.key }
+        val list = (j.optJSONArray("item") ?: j.optJSONArray("list") ?: j.optJSONArray("archives") ?: JSONArray()).objects().filter { it.optInt("aid", it.optInt("id")) > 0 || it.optString("bvid").isNotBlank() }.map { raw ->
+            val video = Video.api(raw)
+            val track = raw.optString("track_id")
+            if (tab == "推荐" && track.isNotBlank() && track.length <= 1024 && raw.optString("goto") == "av")
+                video.copy(recommendation = RecommendationContext(track, recommendationAccount())) else video
+        }.distinctBy { it.key }
         return FeedPage(list, more = tab != "排行榜" && list.size >= 10)
+    }
+    fun recommendationAccount() = cookies.value("DedeUserID").ifBlank { "guest" }
+    fun canSubmitRecommendation(video: Video) = cookies.value("SESSDATA").isNotBlank() && video.kind == "video" && video.aid > 0
+    suspend fun dislikeRecommendation(video: Video, reason: RecommendationReason) {
+        require(canSubmitRecommendation(video)) { "请先登录并等待视频信息加载完成" }
+        require(reason != RecommendationReason.CREATOR || video.mid > 0)
+        val track = video.recommendation?.takeIf { it.account == recommendationAccount() && it.target == "av" && it.trackId.length <= 1024 }?.trackId.orEmpty()
+        try { withTimeout(12000) { post("/x/web-interface/feedback/dislike", mapOf("app_id" to "100", "platform" to "5", "from_spmid" to "", "spmid" to "333.1007.0.0",
+            "goto" to "av", "id" to "${video.aid}", "mid" to "${video.mid}", "track_id" to track,
+            "feedback_page" to "1", "reason_id" to "${reason.serverId}")) } }
+        catch (e: TimeoutCancellationException) { throw WriteOutcomeUnknown(e) }
     }
     suspend fun search(keyword: String, page: Int): FeedPage {
         val j = json("/x/web-interface/wbi/search/type", mapOf("search_type" to "video", "keyword" to keyword, "page" to "$page", "page_size" to "20", "order" to "totalrank"), sign = true, referer = "https://search.bilibili.com/")
@@ -165,17 +181,28 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         val p = mutableMapOf("cid" to "$cid")
         if (video.bvid.isNotBlank()) p["bvid"] = video.bvid else p["aid"] = "${video.aid}"
         val tracks = json("/x/player/wbi/v2", p, sign = true, referer = video.url).obj("subtitle").arr("subtitles").objects()
-        val track = tracks.sortedBy { if (it.optString("lan").contains("zh")) 0 else 1 }.firstOrNull() ?: return emptyList()
-        val url = track.optString("subtitle_url").https().toHttpUrl()
-        require(url.isHttps && (url.host.endsWith(".hdslb.com") || url.host.endsWith(".bilibili.com"))) { "字幕地址不受支持" }
+        if (tracks.isEmpty()) return emptyList()
+        // Prefer human Chinese subtitles, then try another track if one contains only sound markers.
+        val ordered = tracks.sortedBy {
+            (if (it.optString("lan").contains("zh", true)) 0 else 10) +
+                (if (it.optInt("ai_type") > 0 || it.optString("lan").startsWith("ai-", true) || it.optString("lan_doc").contains("自动")) 1 else 0)
+        }.take(3)
         val clean = http.newBuilder().cookieJar(CookieJar.NO_COOKIES).build()
-        return withContext(Dispatchers.IO) { clean.newCall(request(url.toString(), video.url).build()).awaitResponse().use { r ->
+        var failure: Exception? = null; var readAny = false
+        for (track in ordered) try {
+            val url = track.optString("subtitle_url").https().toHttpUrl()
+            require(url.isHttps && (url.host.endsWith(".hdslb.com") || url.host.endsWith(".bilibili.com"))) { "字幕地址不受支持" }
+            val cues = withContext(Dispatchers.IO) { clean.newCall(request(url.toString(), video.url).build()).awaitResponse().use { r ->
             if (!r.isSuccessful) throw java.io.IOException("字幕读取失败（HTTP ${r.code}）")
             val source = r.body?.source() ?: return@use emptyList()
             val buffer = okio.Buffer(); var read = 0L
             while (true) { val n = source.read(buffer, 8192); if (n < 0) break; read += n; if (read > 2 * 1024 * 1024) throw java.io.IOException("字幕内容过大") }
             dev.bilidesk.android.player.Lyrics.parse(JSONObject(buffer.readUtf8()))
-        } }
+            } }
+            readAny = true; if (cues.isNotEmpty()) return cues
+        } catch (e: Exception) { if (e is CancellationException) throw e; failure = e }
+        if (!readAny && failure != null) throw failure
+        return emptyList()
     }
     suspend fun danmaku(cid: Long, segment: Int): List<Danmaku> {
         val url = "$base/x/v2/dm/web/seg.so?type=1&oid=$cid&segment_index=$segment"
@@ -237,10 +264,16 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
     suspend fun folders(aid: Long = 0): List<Folder> {
         val p = mutableMapOf("up_mid" to cookies.value("DedeUserID"))
         if (aid > 0) { p["rid"] = "$aid"; p["type"] = "2" }
-        return json("/x/v3/fav/folder/created/list-all", p).arr("list").objects().map { Folder(it.optLong("id"), it.optString("title"), it.optInt("media_count"), it.optInt("fav_state") == 1) }
+        val response = json("/x/v3/fav/folder/created/list-all", p)
+        if (!response.has("list") || response.optJSONArray("list") == null && (!response.isNull("list") || response.optInt("count") > 0)) throw ApiException(-3, "收藏夹列表暂时无法确认，请重试")
+        return response.arr("list").objects().map { Folder(it.optLong("id"), it.optString("title"), it.optInt("media_count"), it.optInt("fav_state") == 1) }
+    }
+    suspend fun deleteFolder(folder: Long) {
+        require(folder > 0) { "收藏夹信息不完整" }
+        post("/x/v3/fav/folder/del", mapOf("media_ids" to "$folder", "platform" to "web"))
     }
     suspend fun favorites(folder: Long, page: Int): FeedPage {
-        val j = json("/x/v3/fav/resource/list", mapOf("media_id" to "$folder", "pn" to "$page", "ps" to "20", "platform" to "web"))
+        val j = json("/x/v3/fav/resource/list", mapOf("media_id" to "$folder", "pn" to "$page", "ps" to "20", "platform" to "web", "order" to "mtime"))
         return FeedPage(j.arr("medias").objects().map(Video::api), more = j.optBoolean("has_more"))
     }
     suspend fun cloudHistory(page: Int): FeedPage {
@@ -356,7 +389,10 @@ class BiliApi(val cookies: SecureCookies, private val store: Store, client: OkHt
         if (count !in 0..2) throw ApiException(-2, "无法确认已投枚数，请刷新状态后再操作（错误码 -2）")
         return count
     }
-    suspend fun favorite(aid: Long, folder: Long, add: Boolean) { post("/x/v3/fav/resource/deal", mapOf("rid" to "$aid", "type" to "2", (if (add) "add_media_ids" else "del_media_ids") to "$folder")) }
+    suspend fun favorite(aid: Long, folder: Long, add: Boolean) {
+        require(aid > 0 && folder > 0) { "视频或收藏夹信息不完整" }
+        post("/x/v3/fav/resource/deal", mapOf("rid" to "$aid", "type" to "2", (if (add) "add_media_ids" else "del_media_ids") to "$folder"))
+    }
     suspend fun watchLater(aid: Long, add: Boolean) { post(if (add) "/x/v2/history/toview/add" else "/x/v2/history/toview/del", mapOf("aid" to "$aid")) }
     private fun accountMid() = cookies.value("DedeUserID").toLongOrNull()?.takeIf { it > 0 } ?: cookies.cachedUser()?.mid?.takeIf { it > 0 }
     suspend fun followingUsers(page: Int): CreatorPage {

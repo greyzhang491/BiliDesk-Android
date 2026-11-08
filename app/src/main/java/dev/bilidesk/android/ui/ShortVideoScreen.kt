@@ -41,6 +41,9 @@ import kotlinx.coroutines.*
     val state by Graph.player.state.collectAsStateWithLifecycle()
     val s by Graph.store.settings.collectAsStateWithLifecycle()
     val user by vm.user.collectAsStateWithLifecycle()
+    val preferences by Graph.store.recommendations.state.collectAsStateWithLifecycle()
+    val filterAccount = Graph.api.recommendationAccount()
+    val rules = remember(preferences, filterAccount) { Graph.store.recommendations.rules(filterAccount) }
     val context = LocalContext.current
     val activity = LocalActivity.current
     val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -48,6 +51,7 @@ import kotlinx.coroutines.*
     var ownsOrientation by rememberSaveable { mutableStateOf(false) }
     val pager = key(session) { rememberPagerState(initialPage = session.index.coerceIn(0, (feed.videos.size - 1).coerceAtLeast(0)), pageCount = { feed.videos.size.coerceAtLeast(1) }) }
     var menu by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(vm) { vm.playbackReturns.collect { menu = null } }
     LaunchedEffect(session) { menu = null }
     var fill by rememberSaveable { mutableStateOf(false) }
     var held by remember { mutableStateOf(false) }
@@ -71,6 +75,13 @@ import kotlinx.coroutines.*
     BackHandler { back() }
     LaunchedEffect(session) { if (feed.videos.isEmpty()) session.pager.load() }
     val selected = feed.videos.getOrNull(pager.settledPage)
+    LaunchedEffect(rules, session, filterAccount) {
+        val currentKey = selected?.key; val index = pager.settledPage
+        session.pager.filterRecommendations { video -> rules.none { it.matches(video) } }
+        val remaining = session.pager.state.value.videos
+        if (remaining.isNotEmpty()) pager.scrollToPage(remaining.indexOfFirst { it.key == currentKey }.takeIf { it >= 0 } ?: index.coerceAtMost(remaining.lastIndex))
+        else if (currentKey != null) Graph.player.stop()
+    }
     val activeVideo = state.detail?.video?.takeIf { selected != null && (it.key == selected.key || it.aid > 0 && it.aid == selected.aid) }
     val actions = remember(activeVideo?.key, user?.mid) { activeVideo?.let { ShortEngagement(Graph.api, it, scope) { notice -> vm.notices.tryEmit(notice) } } }
     LaunchedEffect(actions, user?.mid) { if (user != null) actions?.load() }
@@ -103,8 +114,8 @@ import kotlinx.coroutines.*
                 TextButton(onClick = { scope.launch { session.pager.load(true) } }) { Text("重新加载") }
                 TextButton(onClick = ::back) { Text("返回") }
             }
-        } else VerticalPager(state = pager, userScrollEnabled = menu == null && creator == null, key = { feed.videos[it].key }, modifier = Modifier.fillMaxSize().semantics { contentDescription = "上下滑切换视频" }) { index ->
-            val video = feed.videos[index]
+        } else VerticalPager(state = pager, userScrollEnabled = menu == null && creator == null, key = { feed.videos.getOrNull(it)?.key ?: "empty-short-$it" }, modifier = Modifier.fillMaxSize().semantics { contentDescription = "上下滑切换视频" }) { index ->
+            val video = feed.videos.getOrNull(index) ?: return@VerticalPager
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val shortWindow = maxHeight < 500.dp
                 if (index == pager.settledPage) {
@@ -148,6 +159,11 @@ import kotlinx.coroutines.*
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).padding(top = 60.dp))
         menu?.let { section ->
+            if (section == "notInterested") {
+                val target = activeVideo?.copy(recommendation = selected?.recommendation) ?: selected
+                if (target == null) menu = null else RecommendationFeedbackDialog(target, vm) { menu = null }
+                return@let
+            }
             val title = when (section) { "comments" -> "评论"; "favorites" -> "添加到收藏夹"; "coin" -> "为作品投币"; "danmaku" -> "弹幕设置"; "holdSpeed" -> "长按倍速"; "speed" -> "播放倍速"; "quality" -> "清晰度"; "lines" -> "播放线路"; "shorts" -> "短视频选项"; else -> "播放设置" }
             PlayerSettingsPanel(title, section !in listOf("playback", "comments", "shorts", "favorites", "coin"), { menu = "playback" }, { menu = null }, scrollContent = section != "comments", dimAmount = if (section == "comments") 0f else .35f) {
                 when (section) {
@@ -163,6 +179,7 @@ import kotlinx.coroutines.*
                     }
                     "lines" -> (listOfNotNull(state.plan?.video?.url) + state.plan?.video?.backups.orEmpty()).distinct().forEachIndexed { i, url -> TextButton(onClick = { Graph.player.line(url); menu = null }) { Text("线路 ${i + 1}") } }
                     "shorts" -> {
+                        MenuRow(Icons.Default.NotInterested, "不感兴趣", "减少类似内容或这位UP主的推荐") { menu = "notInterested" }
                         SwitchSetting("播完自动下一条", "关闭时循环当前视频；浏览评论时继续当前视频", s.shortsAutoNext) { next -> Graph.store.change { it.copy(shortsAutoNext = next) } }
                         MenuRow(Icons.Default.ChatBubbleOutline, "评论", "视频继续播放") { menu = "comments" }
                         MenuRow(if (actions?.liked == true) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt, if (actions?.liked == true) "取消点赞" else "点赞视频") { vm.requireLogin { actions?.toggleLike() } }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 package dev.bilidesk.android.ui
 
@@ -80,6 +80,9 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
     fun destination(name: String) { if (name == "shorts") vm.openShorts() else vm.root(name) }
     BackHandler(enabled = !root && route.name != "player") { if (!vm.back()) vm.root("home") }
     LaunchedEffect(route.name, immersiveMusic) { if (!immersiveMusic && route.name !in listOf("player", "shorts", "music_player")) vm.notices.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(route.name.startsWith("music")) { if (route.name.startsWith("music")) Graph.musicSync.onMusicVisible() }
+    val playbackVisible = route.name in listOf("music", "music_player", "player", "shorts")
+    DisposableEffect(playbackVisible) { onDispose { if (playbackVisible) Graph.musicSync.onPlaybackViewLeaving() } }
     if (route.name == "music_player") { MusicPlayerScreen(vm); return }
     if (route.name == "player" || pip) { PlayerScreen(vm, onPip, pip); return }
     if (route.name == "shorts") { ShortVideoScreen(vm, onPip); return }
@@ -122,6 +125,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
                 "feed" -> FeedRoute(vm, route)
                 "downloads" -> DownloadsScreen(vm)
                 "settings" -> SettingsScreen(vm)
+                "music_sync" -> MusicSyncScreen()
                 "login" -> LoginScreen(vm)
                 "messages" -> if (user == null) LoginGate(vm, "登录后查看消息") else MessagesScreen(vm)
                 "conversation" -> ConversationScreen(vm, route.argument.toLongOrNull() ?: 0)
@@ -148,7 +152,7 @@ private val destinations = listOf(Triple("home", "发现", Icons.Default.Home), 
     var tab by rememberSaveable { mutableStateOf("推荐") }
     key(tab) { VideoFeed(vm, header = {
         Tabs(listOf("推荐", "热门", "排行榜", "直播", "追番"), tab) { tab = it }
-    }, preferNewOnRefresh = tab in listOf("推荐", "热门"), snapshotKey = "home:$tab", load = { page -> when(tab) { "直播" -> Graph.api.liveList(page); "追番" -> Graph.api.bangumi(page); else -> Graph.api.feed(tab, page) } }) }
+    }, recommendationActions = true, preferNewOnRefresh = tab in listOf("推荐", "热门"), snapshotKey = "home:$tab", load = { page -> when(tab) { "直播" -> Graph.api.liveList(page); "追番" -> Graph.api.bangumi(page); else -> Graph.api.feed(tab, page) } }) }
 }
 
 // v2 IDs from upstream PartitionCatalog; these differ from the old ranking region IDs.
@@ -170,21 +174,30 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     }
 }
 
-@Composable fun VideoFeed(vm: AppViewModel, modifier: Modifier = Modifier, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false, snapshotKey: String = "", load: suspend (Int) -> FeedPage) {
+@Composable fun VideoFeed(vm: AppViewModel, modifier: Modifier = Modifier, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false, snapshotKey: String = "", recommendationActions: Boolean = false, load: suspend (Int) -> FeedPage) {
     val user by vm.user.collectAsStateWithLifecycle()
     val epoch by vm.networkEpoch.collectAsStateWithLifecycle()
-    key(snapshotKey, user?.mid) { RefreshableVideoFeed(modifier, onVideo = { vm.openVideo(it) }, onShorts = { vm.openShorts(queue = it) }, header = header, preferNewOnRefresh = preferNewOnRefresh, snapshotKey = snapshotKey.takeIf { it.isNotBlank() }?.let { "${user?.mid ?: 0}:$it" }.orEmpty(), networkEpoch = epoch, onCreator = vm::openCreator, load = load) }
+    var feedback by remember { mutableStateOf<Video?>(null) }
+    feedback?.let { RecommendationFeedbackDialog(it, vm) { feedback = null } }
+    key(snapshotKey, user?.mid) { RefreshableVideoFeed(modifier, onVideo = { vm.openVideo(it) }, onShorts = { vm.openShorts(queue = it) }, header = header, preferNewOnRefresh = preferNewOnRefresh, snapshotKey = snapshotKey.takeIf { it.isNotBlank() }?.let { "${user?.mid ?: 0}:$it" }.orEmpty(), networkEpoch = epoch, onCreator = vm::openCreator,
+        onNotInterested = if (recommendationActions) { video -> feedback = video } else null, load = load) }
 }
 
 @Composable fun RefreshableVideoFeed(modifier: Modifier = Modifier, onVideo: (Video) -> Unit, onShorts: ((List<Video>) -> Unit)? = null, header: @Composable () -> Unit = {}, preferNewOnRefresh: Boolean = false,
     snapshotKey: String = "", networkEpoch: Int = 0, initialPage: Int = 1, initialNextPage: Int = initialPage,
     highlightKey: String = "", revealKey: String = "", onCreator: ((Video) -> Unit)? = null,
     onSelection: ((Video, List<Video>, Int) -> Unit)? = null, initial: List<Video> = emptyList(),
+    favoriteFolder: Folder? = null,
+    onNotInterested: ((Video) -> Unit)? = null,
     load: suspend (Int) -> FeedPage) {
     val scope = rememberCoroutineScope()
     val grid = rememberLazyGridState()
     val loader by rememberUpdatedState(load)
-    val pager = remember { VideoFeedPager({ loader(it) }, initial, preferNewOnRefresh = preferNewOnRefresh, initialPage = initialPage, initialNextPage = initialNextPage,
+    val preferences by Graph.store.recommendations.state.collectAsStateWithLifecycle()
+    val filterAccount = Graph.api.recommendationAccount()
+    val rules = remember(preferences, filterAccount) { Graph.store.recommendations.rules(filterAccount) }
+    val keep by rememberUpdatedState<(Video) -> Boolean>({ video -> onNotInterested == null || rules.none { it.matches(video) } })
+    val pager = remember { VideoFeedPager({ loader(it) }, initial, accept = { keep(it) }, preferNewOnRefresh = preferNewOnRefresh, initialPage = initialPage, initialNextPage = initialNextPage,
         restore = { if (snapshotKey.isBlank()) emptyList() else Graph.store.feedSnapshots.read(snapshotKey) },
         save = { if (snapshotKey.isNotBlank()) Graph.store.feedSnapshots.write(snapshotKey, it) }) }
     val content by pager.state.collectAsStateWithLifecycle()
@@ -197,6 +210,7 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
         }
     }
     LaunchedEffect(Unit) { if (initial.isEmpty()) fetch() }
+    LaunchedEffect(rules) { if (onNotInterested != null) pager.filterRecommendations(keep) }
     LaunchedEffect(networkEpoch) { if (networkEpoch > 0 && content.error != null && !content.busy) fetch(content.refreshFailed || content.cached) }
     LaunchedEffect(revealKey) {
         if (revealKey.isNotBlank()) content.videos.indexOfFirst { it.key == revealKey }.takeIf { it >= 0 }?.let { grid.scrollToItem(it + 1) }
@@ -223,7 +237,11 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
                     if (content.refreshFailed && content.videos.isNotEmpty()) TextButton(onClick = { fetch(true) }) { Text("刷新失败，已保留原内容 · 重试", color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     if (content.unchanged) Text("这次暂时没有新的推荐", Modifier.padding(4.dp), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } }
-                items(content.videos, key = { "${content.revision}:${it.key}" }) { video -> VideoCard(video, s.feedDensity, onCreator?.let { { it(video) } }, current = video.key == highlightKey) { onSelection?.invoke(video, content.videos, content.nextPage) ?: onVideo(video) } }
+                items(content.videos, key = { "${content.revision}:${it.key}" }) { video -> Box {
+                    VideoCard(video, s.feedDensity, onCreator?.let { { it(video) } }, current = video.key == highlightKey,
+                        onLongClick = onNotInterested?.takeIf { video.kind == "video" }?.let { { it(video) } }) { onSelection?.invoke(video, content.videos, content.nextPage) ?: onVideo(video) }
+                    if (favoriteFolder != null) Box(Modifier.align(Alignment.TopEnd).padding(4.dp)) { FavoriteVideoMenu(video, favoriteFolder) { scope.launch { pager.removeFavorite(video.key) } } }
+                } }
                 item(key = "feed-footer-${content.videos.size}", span = { GridItemSpan(maxLineSpan) }) { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     when {
                         content.busy -> CircularProgressIndicator(Modifier.padding(20.dp).size(24.dp), strokeWidth = 2.dp)
@@ -237,8 +255,8 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
     }
 }
 
-@Composable fun VideoCard(video: Video, density: Int = 1, onCreator: (() -> Unit)? = null, current: Boolean = false, onClick: () -> Unit) {
-    Column(Modifier.clip(RoundedCornerShape(7.dp)).clickable(onClick = onClick)) {
+@Composable fun VideoCard(video: Video, density: Int = 1, onCreator: (() -> Unit)? = null, current: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    Column(Modifier.clip(RoundedCornerShape(7.dp)).then(if (onLongClick == null) Modifier.clickable(onClick = onClick) else Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = "不感兴趣"))) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(video.cover, video.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             if (current) Text("当前播放", Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 7.dp, vertical = 3.dp), color = MaterialTheme.colorScheme.onPrimary, fontSize = 10.sp)
@@ -299,8 +317,13 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
             } else { val user by vm.user.collectAsStateWithLifecycle(); if (user == null) LoginGate(vm, "登录后同步云端历史") else VideoFeed(vm, load = { Graph.api.cloudHistory(it) }) }
         }
     } else if (route.argument.startsWith("space:")) CreatorScreen(CreatorProfile(route.argument.substringAfter(':').toLong(), route.label, ""), vm)
+    else if (route.argument.startsWith("folder:")) {
+        val epoch by vm.networkEpoch.collectAsStateWithLifecycle()
+        val folder = remember(route.argument) { Folder(route.argument.substringAfter(':').toLong(), route.label, 0) }
+        RefreshableVideoFeed(onVideo = vm::openVideo, onCreator = vm::openCreator, networkEpoch = epoch, favoriteFolder = folder,
+            onShorts = { vm.openShorts(queue = it) }, load = { Graph.api.favorites(folder.id, it) })
+    }
     else VideoFeed(vm, load = { p -> when {
-        route.argument.startsWith("folder:") -> Graph.api.favorites(route.argument.substringAfter(':').toLong(), p)
         route.argument.startsWith("space:") -> Graph.api.uploads(route.argument.substringAfter(':').toLong(), p)
         route.argument == "myBangumi" -> Graph.api.bangumi(p, true)
         else -> Graph.api.later()
@@ -323,7 +346,10 @@ val regions = listOf(0 to "全部", 1005 to "动画", 13 to "番剧", 1008 to "�
             error != null -> EmptyState("收藏夹加载失败", error!!, { tick++ })
             folders == null -> LoadingState()
             folders!!.isEmpty() -> EmptyState("还没有收藏夹", "点击上方新建收藏夹")
-            else -> LazyColumn(contentPadding = PaddingValues(16.dp)) { items(folders!!, key = { it.id }) { f -> MenuRow(Icons.Default.FolderOpen, f.title, "${f.count} 个视频") { vm.navigate("feed", "folder:${f.id}", f.title) } } }
+            else -> LazyColumn(contentPadding = PaddingValues(16.dp)) { items(folders!!, key = { it.id }) { f -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { MenuRow(Icons.Default.FolderOpen, f.title, "${f.count} 个视频") { vm.navigate("feed", "folder:${f.id}", f.title) } }
+                FavoriteFolderMenu(f) { folders = folders?.filterNot { it.id == f.id }; vm.notices.tryEmit("已删除收藏夹") }
+            } } }
         }
     }
 }

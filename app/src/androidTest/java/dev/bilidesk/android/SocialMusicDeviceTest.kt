@@ -96,7 +96,9 @@ class SocialMusicDeviceTest {
                     text("按最新").click(); text("最早").click(); text("最早的一条评论")
                     assertTrue(fixture.readRequests.any { it.contains("/x/v2/reply?") && it.contains("pn=3") && it.contains("sort=0") })
                     shot("comments-oldest")
-                    text("简介").click(); UiScrollable(UiSelector().scrollable(true)).scrollToBeginning(10)
+                    text("简介").click(); freshTree()
+                    val detailsScroll = UiScrollable(UiSelector().scrollable(true))
+                    if (detailsScroll.exists()) detailsScroll.scrollToBeginning(10)
                     clickDescription("收藏"); text("新建收藏夹").click()
                     device.wait(Until.findObject(By.clazz("android.widget.EditText")), 10000)!!.text = "测试新收藏夹"
                     text("创建").click(); text("测试新收藏夹")
@@ -117,7 +119,7 @@ class SocialMusicDeviceTest {
                     lateinit var vm: AppViewModel
                     scenario.onActivity { vm = ViewModelProvider(it)[AppViewModel::class.java]; Graph.player.music.play(Video(bvid = "BV156xx6wEff"), 101); Graph.player.music.mode(MusicMode.ONE); vm.root("music") }
                     await("Music did not start") { Graph.player.exo.isPlaying && Graph.player.state.value.music }
-                    assertNotNull(device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 10000))
+                    assertNotNull(device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词")), 10000))
                     assertFalse("Music landing should display the player", device.hasObject(By.text("B站收藏夹")))
                     val original = Graph.player.music.queue.value
                     clickDescription("当前歌曲选项"); text("合集 / 分P选曲").click(); text("第二首分P").click()
@@ -166,14 +168,27 @@ class SocialMusicDeviceTest {
                     assertFalse("Music performed a video CDN probe", fixture.readRequests.any { it.contains("unwanted-video-probe") })
                     assertTransportSymmetry()
                     var media: Any? = null; scenario.onActivity { media = Graph.player.exo.currentMediaItem }
-                    clickDescription("音乐唱片，点击切换歌词或原视频")
-                    await("Explicit picture did not decode video") { Graph.player.state.value.musicVisual && (Graph.player.exo.videoDecoderCounters?.renderedOutputBufferCount ?: 0) > 0 }
-                    assertTrue(loads.any { it.contains("fixture-video") })
-                    scenario.onActivity { assertSame(media, Graph.player.exo.currentMediaItem) }
+                    var audioDecoder: Any? = null; scenario.onActivity { audioDecoder = Graph.player.exo.audioDecoderCounters }
+                    clickDescription("音乐唱片，点击切换歌词")
+                    node(By.desc("同步滚动歌词")); text("暂时没有可用歌词")
+                    scenario.onActivity { assertFalse(Graph.player.state.value.musicVisual); assertNull(Graph.player.musicPicture.player) }
+                    clickDescription("显示原视频")
+                    await("Explicit picture did not decode video") { Graph.player.state.value.musicVisual && Graph.player.musicPicture.state.value.ready && (Graph.player.musicPicture.player?.videoDecoderCounters?.renderedOutputBufferCount ?: 0) > 0 }
+                    assertFalse("Picture switching reloaded the primary audio source", loads.any { it.contains("fixture-video") })
+                    scenario.onActivity { assertSame(media, Graph.player.exo.currentMediaItem); assertSame("Picture switching recreated the audio decoder", audioDecoder, Graph.player.exo.audioDecoderCounters); assertTrue(Graph.player.exo.isPlaying) }
+                    val pictureBounds = node(By.desc("音乐原视频画面")).visibleBounds
+                    val selectorBounds = node(By.desc("显示原视频")).visibleBounds
+                    assertTrue("Original picture overlaps the face selector", pictureBounds.bottom <= selectorBounds.top + 2)
+                    assertTrue("Original picture covers the header", pictureBounds.top >= node(By.desc("音乐播放器设置")).visibleBounds.bottom - 2)
+                    shot("music-original-video")
+                    clickDescription("显示歌词"); node(By.desc("同步滚动歌词"))
+                    await("Returning to lyrics retained the picture decoder",) { Graph.player.musicPicture.player == null && Graph.player.exo.isPlaying }
+                    clickDescription("显示原视频")
+                    await("Picture could not reopen") { Graph.player.musicPicture.state.value.ready }
                     val beforeBackground = loads.size
                     device.pressHome()
                     assertTrue(device.wait(Until.hasObject(By.pkg("com.android.launcher3")), 5000))
-                    await("Background music retained the video source") { !Graph.player.state.value.musicVisual && Graph.player.exo.isPlaying }
+                    await("Background music retained the video source") { !Graph.player.state.value.musicVisual && Graph.player.musicPicture.player == null && Graph.player.exo.isPlaying }
                     var buffers = 0
                     scenario.onActivity { buffers = Graph.player.exo.audioDecoderCounters?.renderedOutputBufferCount ?: 0 }
                     await("Background audio stopped after removing the picture") { (Graph.player.exo.audioDecoderCounters?.renderedOutputBufferCount ?: 0) > buffers + 15 }
@@ -181,7 +196,7 @@ class SocialMusicDeviceTest {
                     val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)!!.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                     context.startActivity(launch)
                     scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
-                    node(By.desc("音乐唱片，点击切换歌词或原视频"))
+                    node(By.desc("音乐唱片，点击切换歌词"))
                     clickDescription("音乐播放器设置"); text("沉浸封面").click()
                     await("Style was not applied") { Graph.store.settings.value.music.style == MusicStyle.IMMERSIVE }
                     device.pressBack(); assertTransportSymmetry(); shot("music-immersive")

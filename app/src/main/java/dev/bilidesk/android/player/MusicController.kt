@@ -29,11 +29,29 @@ class MusicController(private val context: Context, private val api: BiliApi, pr
     private var playlistGeneration = 0
     private var lyricJob: Job? = null
     private var savedPosition = positionPrefs.getLong("position", prefs.getLong("position", saved.optLong("position")))
+    internal val resumePosition get() = savedPosition
+    internal fun restoreSynced(queue: MusicQueueState, position: Long, start: Boolean) {
+        playlistJob?.cancel(); playlistGeneration++
+        savedPosition = position.coerceAtLeast(0); change(queue)
+        if (start) queue.current?.let { track ->
+            val alreadyLoaded = engine.state.value.detail?.video?.key == track.video.key &&
+                (track.cid == 0L || engine.currentEpisode()?.cid == track.cid) && engine.exo.mediaItemCount > 0
+            engine.openMusic(track, savedPosition)
+            // openMusic intentionally reuses the playing item; a handoff also needs its explicit position.
+            if (alreadyLoaded) engine.seek(savedPosition)
+        } ?: run { if (engine.state.value.music) engine.stop() }
+    }
     private var lyricKey = ""
     init { scope.launch { while (isActive) { delay(15000); snapshot() } } }
     private fun change(next: MusicQueueState) { _queue.value = next; persist(); engine.refreshSession() }
     private fun persist() { prefs.edit().putString("queue", _queue.value.json().toString()).apply(); positionPrefs.edit().putLong("position", savedPosition).apply() }
-    fun snapshot() { if (engine.state.value.music) { savedPosition = engine.exo.currentPosition.coerceAtLeast(0); positionPrefs.edit().putLong("position", savedPosition).apply() } }
+    fun snapshot() {
+        val playback = engine.state.value; val track = _queue.value.current
+        if (playback.music && track != null && playback.detail?.video?.key == track.video.key &&
+            (track.cid == 0L || engine.currentEpisode()?.cid == track.cid) && engine.exo.playbackState != androidx.media3.common.Player.STATE_IDLE) {
+            savedPosition = engine.exo.currentPosition.coerceAtLeast(0); positionPrefs.edit().putLong("position", savedPosition).apply()
+        }
+    }
     fun play(video: Video, cid: Long = 0, title: String = "", position: Long = 0) { playTrack(MusicTrack(video, cid, title), position) }
     fun playTrack(track: MusicTrack, position: Long = 0) { snapshot(); savedPosition = position; change(_queue.value.add(track).select(track.key)); engine.openMusic(track, position) }
     fun resume() { val track = _queue.value.current ?: return; if (engine.state.value.music) engine.toggle() else engine.openMusic(track, savedPosition) }
@@ -92,6 +110,8 @@ class MusicController(private val context: Context, private val api: BiliApi, pr
     fun previous() { snapshot(); savedPosition = 0; change(_queue.value.previous()); _queue.value.current?.let { engine.openMusic(it, forceRestart = true) } }
     fun mode(mode: MusicMode) { change(_queue.value.copy(mode = mode, remaining = emptyList())) }
     fun move(from: Int, to: Int) { change(_queue.value.move(from, to)) }
+    fun reorder(keys: List<String>) { val next = _queue.value.reorder(keys); if (next != _queue.value) { snapshot(); change(next) } }
+    fun playNext(key: String) { val next = _queue.value.playNext(key); if (next != _queue.value) change(next) }
     fun remove(key: String) {
         val wasCurrent = _queue.value.currentKey == key; savedPosition = if (wasCurrent) 0 else savedPosition
         change(_queue.value.remove(key))

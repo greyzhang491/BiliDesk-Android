@@ -6,11 +6,11 @@
     <a href="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml"><img src="https://github.com/greyzhang491/BiliDesk-Android/actions/workflows/android.yml/badge.svg" alt="Android checks"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="GPL-3.0-only"></a>
     <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 及以上">
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.2"><img src="https://img.shields.io/badge/preview-0.2.2-EC7FA9" alt="0.2.2 开发预览版"></a>
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.5"><img src="https://img.shields.io/badge/preview-0.2.5-EC7FA9" alt="0.2.5 开发预览版"></a>
   </p>
   <p>
-    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.2">下载安装</a> ·
-    <a href="docs/RELEASE-0.2.2.md">使用说明</a> ·
+    <a href="https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.5">下载安装</a> ·
+    <a href="docs/RELEASE-0.2.5.md">使用说明</a> ·
     <a href="docs/ARCHITECTURE.md">代码导览</a> ·
     <a href="CONTRIBUTING.md">参与开发</a> ·
     <a href="https://github.com/greyzhang491/BiliDesk-Android/issues/new/choose">反馈问题</a>
@@ -68,18 +68,18 @@
 </table>
 </details>
 
-截图使用假账号、独立样片和标明 `UI DEMO` 的测试头像／配图，展示实际运行布局；视频测试画面的署名与许可见 [NOTICE](NOTICE.md)。视觉参考、组件入口和素材约定见 [界面设计说明](docs/UI-DESIGN.md)。
+上方界面预览来自0.1.8—0.2.2，当前音乐队列与设备面板已更新。截图使用假账号、独立样片和标明 `UI DEMO` 的测试头像／配图，展示实际运行布局；视频测试画面的署名与许可见 [NOTICE](NOTICE.md)。视觉参考、组件入口和素材约定见 [界面设计说明](docs/UI-DESIGN.md)。
 
 ## 下载与上手
 
-1. 打开 [v0.2.2 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.2)，下载 `BiliDesk-Android-0.2.2-preview.apk`。要求 **Android 8.0 或以上**。
+1. 打开 [v0.2.5 Releases](https://github.com/greyzhang491/BiliDesk-Android/releases/tag/v0.2.5)，下载 `BiliDesk-Android-0.2.5-preview.apk`。要求 **Android 8.0 或以上**。
 2. 如需账号内容，使用应用内的官方扫码或网页登录；不要向项目维护者提供密码、Cookie 或登录令牌。
 3. 点击「音乐」进入播放器，可直接搜歌；「我的歌单」管理多个本机歌单和B站收藏夹，支持合集／分P批量选曲。
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
-| 播放、手势、音乐和缓存怎么用 | [0.1.8 音乐与互动说明](docs/RELEASE-0.1.8.md) · [基础 PDF（0.1.6）](docs/USAGE.pdf) · [基础离线 HTML（0.1.6）](docs/USAGE.html) |
-| 这一版更新了什么 | [0.2.2播放网络与关注](docs/RELEASE-0.2.2.md) · [0.2.1 评论与主页](docs/RELEASE-0.2.1.md) · [0.2.0 界面更新](docs/RELEASE-0.2.0.md) · [变更记录](CHANGELOG.md) |
+| 播放、手势、音乐和缓存怎么用 | [当前使用指南](docs/RELEASE-0.2.5.md) · [0.1.8 音乐与互动说明](docs/RELEASE-0.1.8.md) · [基础 PDF（0.1.6）](docs/USAGE.pdf) · [基础离线 HTML（0.1.6）](docs/USAGE.html) |
+| 这一版更新了什么 | [0.2.5 音乐、同步与小窗](docs/RELEASE-0.2.5.md) · [0.2.2播放网络与关注](docs/RELEASE-0.2.2.md) · [0.2.1 评论与主页](docs/RELEASE-0.2.1.md) · [0.2.0 界面更新](docs/RELEASE-0.2.0.md) · [变更记录](CHANGELOG.md) |
 | 如何编译、调试和提交修改 | [构建说明](docs/BUILD.md) · [开发指南](docs/DEVELOPMENT.md) · [贡献指南](CONTRIBUTING.md) |
 
 Release 中的预览 APK 与此前交付的 0.1.6 使用相同证书，可覆盖更新并保留数据。**Actions 构建包使用运行环境的临时调试证书，不能保证覆盖安装 Release 版本**。日常使用请选择 Release 附件；附件的 SHA256 校验值见同页 `SHA256SUMS.txt`。
@@ -88,19 +88,20 @@ Release 中的预览 APK 与此前交付的 0.1.6 使用相同证书，可覆盖
 
 | 板块 | 已实现 |
 | --- | --- |
-| 发现与搜索 | 推荐、热门、排行榜、分区；关键词与 BV/AV/链接搜索；下拉刷新、自动分页、卡片密度和列数 |
+| 发现与搜索 | 推荐、热门、排行榜、分区；关键词与 BV/AV/链接搜索；下拉刷新、自动分页、卡片密度和列数、长按不感兴趣 |
 | 视频播放 | DASH分段索引与自动码率、H.264兼容回退、备用线路续传、断线保留进度；分P、清晰度与线路、倍速、全屏、画中画、后台听视频 |
 | 播放手势 | 双击快进退、长按倍速、长按横滑调进度；横屏左侧亮度、右侧音量 |
 | 短视频模式 | 普通长短视频上下滑连播；点赞、评论、收藏、分享；倍率选择和锁定；评论时继续播放；横屏使用常规控件 |
-| 音乐模式 | 独立音轨省流、音质选择；多个本机歌单与B站收藏夹、合集／分P批量选曲；搜索、下一首、队列与四种播放模式；唱片／沉浸／简约风格、配色与歌词DIY、小播放条及后台控制 |
+| 音乐模式 | 独立音轨省流、音质选择；多个本机歌单与B站收藏夹、合集／分P批量选曲；搜索、下一首、队列与四种播放模式；唱片／歌词／原视频显式切换、唱片／沉浸／简约风格、配色与歌词DIY、小播放条及后台控制 |
+| 跨设备续播 | 可选坚果云加密同步本机歌单、队列和进度；各设备分别保留、改名与主动选取，空闲时提示续播，操作触发上传、连续播放20分钟兜底 |
 | 弹幕 | 滚动/顶部/底部、透明度、区域、字号、速度、去重和屏蔽词；播放中即时调整 |
 | 离线与存储 | 实际可用画质、视频或音频选择；分段续传、暂停继续、恢复任务和合流；自动缓存限额与过期清理 |
-| 评论与主页 | 头像、等级、属地、表情与图片；彩色可点击提及、赞踩、指定楼中楼回复；最热／最新／最早排序、自动分页与返回位置保持；作者头像／粉丝数、投稿内搜索与当前视频定位、主页浏览持续播放 |
-| 账号与平板 | 官方扫码/网页登录与断网重连恢复；我的关注分页与状态同步、新建收藏夹、历史、稍后再看、追番和消息；侧边导航、横屏双栏、全屏与分屏适配 |
+| 评论与主页 | 头像、等级、属地、表情与图片；彩色可点击提及、赞踩、指定楼中楼回复；最热／最新／最早排序、自动分页与返回位置保持；作者头像／粉丝数、投稿内搜索与当前视频定位、主页浏览以可移动／四角缩放小窗持续播放 |
+| 账号与平板 | 官方扫码/网页登录与断网重连恢复；我的关注分页与状态同步、新建／删除收藏夹、移除夹内视频、历史、稍后再看、追番和消息；侧边导航、横屏双栏、全屏与分屏适配 |
 
 手机竖屏进入音乐时隐藏主导航，左上角收起或系统返回后恢复进入前的板块，音乐继续播放；平板保留导航和双栏。操作见 [0.1.9 沉浸模式](docs/RELEASE-0.1.9.md)。
 
-音乐入口替代动态并默认打开播放器。纯听歌只加载独立音轨；查看原视频会使用视频流量。歌词来自可读取的字幕，不自动生成；没有字幕时，点唱片显示原视频。多歌单、流量与DIY步骤见 [0.1.8 使用补充](docs/RELEASE-0.1.8.md)。短视频模式复用普通推荐和当前列表，未接入官方私有 Story 流。
+音乐入口替代动态并默认打开播放器。纯听歌只加载独立音轨；查看原视频会使用视频流量。歌词来自可读取的字幕，不自动生成；缺少歌词时显示状态，原视频须主动选择。具有独立音轨时，按需加载静音画面并跟随音频，不替换正在播放的音轨。多歌单、流量与DIY步骤见 [0.1.8 使用补充](docs/RELEASE-0.1.8.md)。短视频模式复用普通推荐和当前列表，未接入官方私有 Story 流。
 
 ## 缓存会自动清理吗
 
@@ -128,12 +129,17 @@ Windows 使用 `gradlew.bat`。首次构建需要下载依赖；连接受限时�
 | API、凭据、存储与纯策略 | [data/](app/src/main/java/dev/bilidesk/android/data) | [data 导览](app/src/main/java/dev/bilidesk/android/data/README.md) |
 | 播放、音乐队列、弹幕和媒体服务 | [player/](app/src/main/java/dev/bilidesk/android/player) | [player 导览](app/src/main/java/dev/bilidesk/android/player/README.md) |
 | 下载队列、断点续传与合流 | [download/](app/src/main/java/dev/bilidesk/android/download) | [download 导览](app/src/main/java/dev/bilidesk/android/download/README.md) |
+| 可选加密同步与设备续播 | [sync/](app/src/main/java/dev/bilidesk/android/sync) | [sync 导览](app/src/main/java/dev/bilidesk/android/sync/README.md) |
 | Compose 页面、自适应布局与手势 | [ui/](app/src/main/java/dev/bilidesk/android/ui) | [ui 导览](app/src/main/java/dev/bilidesk/android/ui/README.md) |
 | 单元测试与设备交互验证 | [JVM 测试](app/src/test/java/dev/bilidesk/android)、[设备测试方法](validation/INTERACTION_TESTS.md) | [验证记录与边界](docs/VALIDATION-0.2.1.md) |
 
 欢迎提交 [Issue](https://github.com/greyzhang491/BiliDesk-Android/issues/new/choose) 或 Pull Request。新贡献请先阅读 [CONTRIBUTING](CONTRIBUTING.md)；账号或凭据泄露问题请按 [SECURITY](SECURITY.md) 私下报告。
 
 ## 验证与已知限制
+
+0.2.5通过 **185项JVM测试、手机17项及平板17项模拟器交互场景**，Lint 0错误／45警告。设备测试使用同一最终APK和测试包；累计更新的构建输入与安装包对应关系见[验证说明](docs/VALIDATION-0.2.5.md)及[源码清单](validation/source-integrity-0.2.5.json)。测试使用合成账号和隔离样片；不代表真实平台写入或所有网络环境已通过验收。
+
+云同步默认关闭，每位用户单独配置坚果云应用密码和恢复密钥。仓库、APK与CI中不预置用户账号、密码、Cookie、恢复密钥或云端记录。操作方法与流量边界见[当前使用说明](docs/RELEASE-0.2.5.md)，数据范围见[隐私说明](PRIVACY.md)。
 
 0.2.1 的评论、用户主页、滚动恢复和长按提示检查见 [当前验证说明](docs/VALIDATION-0.2.1.md)、[验证摘要](validation/interaction-checks-0.2.1.json) 与 [当前源码清单](validation/source-integrity-0.2.1.json)。本版操作见 [评论与主页说明](docs/RELEASE-0.2.1.md)。
 

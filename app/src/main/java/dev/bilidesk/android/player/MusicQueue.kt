@@ -49,6 +49,15 @@ data class MusicQueueState(val tracks: List<MusicTrack> = emptyList(), val curre
         if (from !in tracks.indices || to !in tracks.indices) return this
         return copy(tracks = tracks.toMutableList().apply { add(to, removeAt(from)) })
     }
+    /** A drop commits once; concurrent additions survive and removed songs cannot reappear. */
+    fun reorder(keys: List<String>): MusicQueueState {
+        val byKey = tracks.associateBy { it.key }
+        val ordered = keys.distinct().mapNotNull(byKey::get)
+        val included = ordered.mapTo(hashSetOf()) { it.key }
+        return copy(tracks = ordered + tracks.filter { it.key !in included })
+    }
+    fun playNext(key: String): MusicQueueState = if (key == currentKey || tracks.none { it.key == key }) this
+        else copy(nextUp = listOf(key) + nextUp.filter { it != key })
     fun json(position: Long = 0) = JSONObject().put("tracks", JSONArray(tracks.map(MusicTrack::json))).put("current", currentKey).put("mode", mode.name).put("next", JSONArray(nextUp)).put("remaining", JSONArray(remaining)).put("history", JSONArray(history)).put("position", position.coerceAtLeast(0))
     companion object {
         fun from(j: JSONObject): MusicQueueState {
@@ -62,9 +71,10 @@ data class MusicQueueState(val tracks: List<MusicTrack> = emptyList(), val curre
 data class LyricCue(val startMs: Long, val endMs: Long, val text: String)
 object Lyrics {
     fun displayText(text: String) = text.replace(Regex("^[\\s♪♫♬♩🎵🎶]+|[\\s♪♫♬♩🎵🎶]+$"), "").trim()
+    private val soundMarker = Regex("^(?:[\\[【(（]\\s*)?(?:music|instrumental|applause|silence|音乐|纯音乐|伴奏|前奏|间奏|尾奏|掌声|笑声)(?:\\s*[\\]】)）])?$", RegexOption.IGNORE_CASE)
     fun parse(j: JSONObject): List<LyricCue> = j.arr("body").objects().mapNotNull {
         val start = it.optDouble("from", -1.0); val end = it.optDouble("to", -1.0); val text = displayText(it.optString("content"))
-        if (!start.isFinite() || !end.isFinite() || start < 0 || end <= start || text.isBlank()) null else LyricCue((start * 1000).toLong(), (end * 1000).toLong(), text.take(4000))
+        if (!start.isFinite() || !end.isFinite() || start < 0 || end <= start || text.isBlank() || soundMarker.matches(text)) null else LyricCue((start * 1000).toLong(), (end * 1000).toLong(), text.take(4000))
     }.sortedBy { it.startMs }
     fun current(cues: List<LyricCue>, position: Long): Int {
         var lo = 0; var hi = cues.lastIndex; var found = -1

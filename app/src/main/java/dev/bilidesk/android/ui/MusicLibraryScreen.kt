@@ -15,9 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -98,7 +95,9 @@ import kotlinx.coroutines.*
                 Text(folder?.title ?: "收藏夹", Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 TextButton(enabled = !status.loadingPlaylist, onClick = { Graph.player.music.playFolder(selected!!); vm.openMusicPlayer() }) { Text("播放全部") }
             }
-            key(selected) { MusicPagedSongs(vm, { Graph.api.favorites(selected!!, it) }) }
+            key(selected) { MusicPagedSongs(vm, { Graph.api.favorites(selected!!, it) }, folder) {
+                folders = folders.map { if (it.id == selected) it.copy(count = (it.count - 1).coerceAtLeast(0)) else it }
+            } }
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (tab) {
                 "歌单" -> {
@@ -114,6 +113,7 @@ import kotlinx.coroutines.*
                             Icon(Icons.Default.LibraryMusic, null, Modifier.size(36.dp), tint = Pink)
                             Column(Modifier.weight(1f).padding(horizontal = 14.dp)) { Text(folder.title, maxLines = 2, fontWeight = FontWeight.Medium); Text("${folder.count} 个收藏", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             IconButton(onClick = { Graph.player.music.playFolder(folder.id); vm.openMusicPlayer() }) { Icon(Icons.Default.PlayCircle, "播放歌单 ${folder.title}") }
+                            FavoriteFolderMenu(folder) { folders = folders.filterNot { it.id == folder.id } }
                         }
                     } }
                     if (!busy && user != null && folders.isEmpty() && error == null) item { Text("暂时没有收藏夹。也可以先搜索歌曲播放。", fontSize = 13.sp) }
@@ -149,7 +149,7 @@ import kotlinx.coroutines.*
     }
 }
 
-@Composable private fun MusicPagedSongs(vm: AppViewModel, loader: suspend (Int) -> FeedPage) {
+@Composable private fun MusicPagedSongs(vm: AppViewModel, loader: suspend (Int) -> FeedPage, folder: Folder? = null, onUnfavorited: () -> Unit = {}) {
     val latest by rememberUpdatedState(loader)
     val pager = remember { VideoFeedPager({ latest(it) }, accept = { it.kind == "video" }) }
     val content by pager.state.collectAsStateWithLifecycle()
@@ -158,17 +158,20 @@ import kotlinx.coroutines.*
     val nearEnd by remember { derivedStateOf { (list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= content.videos.size - 4 } }
     LaunchedEffect(nearEnd, content.nextPage, content.busy, content.more, content.error) { if (nearEnd && !content.busy && content.more && content.error == null) scope.launch { pager.load() } }
     LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(content.videos, key = { it.key }) { song -> MusicSongRow(song, vm) }
+        items(content.videos, key = { it.key }) { song -> MusicSongRow(song, vm, favoriteFolder = folder, onUnfavorited = { onUnfavorited(); scope.launch { pager.removeFavorite(song.key) } }) }
         item { when { content.busy -> LinearProgressIndicator(Modifier.fillMaxWidth()); content.error != null -> TextButton(onClick = { scope.launch { pager.load() } }) { Text("${content.error} · 重试") }; content.videos.isEmpty() -> Text("暂时没有歌曲", fontSize = 13.sp) } }
     }
 }
 
-@Composable fun MusicSongRow(video: Video, vm: AppViewModel, title: String = video.title, cid: Long = 0, onPlay: () -> Unit = { vm.playMusic(video) }) {
+@Composable fun MusicSongRow(video: Video, vm: AppViewModel, title: String = video.title, cid: Long = 0,
+    favoriteFolder: Folder? = null, onUnfavorited: () -> Unit = {}, onPlay: () -> Unit = { vm.playMusic(video) }) {
     val scope = rememberCoroutineScope()
     var more by remember { mutableStateOf(false) }
     var favorite by remember { mutableStateOf(false) }
     var save by remember { mutableStateOf(false) }
     var batch by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
+    if (removing && favoriteFolder != null) RemoveFavoriteDialog(video, favoriteFolder, { removing = false }, { removing = false; onUnfavorited() })
     val track = MusicTrack(video, cid, title)
     if (save) SaveTracksDialog(listOf(track), { save = false }, { save = false; vm.notices.tryEmit("已加入歌单") })
     if (batch) MusicBatchDialog(video, vm) { batch = false }
@@ -190,6 +193,7 @@ import kotlinx.coroutines.*
                 DropdownMenuItem(text = { Text("加入歌单") }, onClick = { more = false; save = true })
                 DropdownMenuItem(text = { Text("合集 / 分P选曲") }, onClick = { more = false; batch = true })
                 DropdownMenuItem(text = { Text("收藏到收藏夹") }, onClick = { more = false; vm.requireLogin { favorite = true } })
+                if (favoriteFolder != null) DropdownMenuItem(text = { Text("取消收藏", color = MaterialTheme.colorScheme.error) }, enabled = video.aid > 0, onClick = { more = false; removing = true })
                 DropdownMenuItem(text = { Text("缓存音频") }, onClick = { more = false; scope.launch { try { val detail = Graph.api.detail(video); (detail.pages.firstOrNull { it.cid == cid } ?: detail.pages.firstOrNull())?.let { download = detail.video to it } } catch (e: Exception) { if (e is CancellationException) throw e; vm.notices.tryEmit(e.message ?: "无法读取歌曲") } } })
             }
         }
@@ -200,39 +204,5 @@ import kotlinx.coroutines.*
     val scope = rememberCoroutineScope()
     val actions = remember(video.key) { ShortEngagement(Graph.api, video, scope) { vm.notices.tryEmit(it) } }
     LaunchedEffect(actions) { actions.loadFolders() }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("收藏歌曲") }, text = { Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) { ShortFavoritePanel(actions) } }, confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } })
-}
-
-@Composable fun MusicQueuePanel(vm: AppViewModel, modifier: Modifier = Modifier, dark: Boolean = false, onSelect: () -> Unit = {}) {
-    val controller = Graph.player.music
-    val queue by controller.queue.collectAsStateWithLifecycle()
-    val text = if (dark) Color.White else MaterialTheme.colorScheme.onSurface
-    val density = LocalDensity.current.density
-    Column(modifier) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("播放队列 · ${queue.tracks.size}", Modifier.weight(1f), color = text, fontWeight = FontWeight.Medium)
-            TextButton(onClick = { controller.clear() }, enabled = queue.tracks.isNotEmpty()) { Text("清空") }
-        }
-        if (queue.tracks.isEmpty()) Text("还没有歌曲", color = text.copy(alpha = .6f), fontSize = 12.sp)
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            itemsIndexed(queue.tracks, key = { _, track -> track.key }) { index, track ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (track.key == queue.currentKey) Pink.copy(alpha = .13f) else Color.Transparent).clickable { controller.playTrack(track); onSelect() }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.DragHandle, "拖动排序 ${track.displayTitle}", Modifier.size(32.dp).pointerInput(track.key) {
-                        var moved = 0f
-                        detectDragGesturesAfterLongPress(onDragStart = { moved = 0f }, onDrag = { change, delta ->
-                            change.consume(); moved += delta.y
-                            if (kotlin.math.abs(moved) > 64 * density) {
-                                val from = controller.queue.value.tracks.indexOfFirst { it.key == track.key }
-                                val to = (from + if (moved > 0) 1 else -1).coerceIn(0, controller.queue.value.tracks.lastIndex.coerceAtLeast(0))
-                                controller.move(from, to); moved = 0f
-                            }
-                        })
-                    }, tint = text.copy(alpha = .45f))
-                    Column(Modifier.weight(1f).padding(start = 4.dp)) { Text(track.displayTitle, color = if (track.key == queue.currentKey) Pink else text, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis); if (track.key in queue.nextUp) Text("下一首", fontSize = 10.sp, color = Pink) }
-                    IconButton(onClick = { controller.move(index, (index - 1).coerceAtLeast(0)) }, Modifier.size(30.dp)) { Icon(Icons.Default.KeyboardArrowUp, "上移 ${track.displayTitle}", tint = text.copy(alpha = .6f)) }
-                    IconButton(onClick = { controller.remove(track.key) }, Modifier.size(32.dp)) { Icon(Icons.Default.Close, "移出队列 ${track.displayTitle}", tint = text.copy(alpha = .6f), modifier = Modifier.size(18.dp)) }
-                }
-            }
-        }
-    }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("收藏到B站") }, text = { Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) { ShortFavoritePanel(actions) } }, confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } })
 }

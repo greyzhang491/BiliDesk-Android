@@ -32,13 +32,15 @@ import android.os.SystemClock
  * Push the Media3 public test sample to the app's external-files directory, then use
  * am instrument ... -e playback_fixture true ... . This does not test Bilibili networking.
  */
-class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false, richComments: Boolean = false, networkMedia: Boolean = false, private val creatorData: Boolean = false): AutoCloseable {
+class InteractionFixture(private val instrumentation: Instrumentation, private val loggedIn: Boolean = false, private val downloadMedia: Boolean = false, private val musicMedia: Boolean = false, private val socialData: Boolean = false, richComments: Boolean = false, networkMedia: Boolean = false, private val creatorData: Boolean = false, private val favoriteData: Boolean = false, private val recommendationData: Boolean = false): AutoCloseable {
     private val context = instrumentation.targetContext
     private val previousApi = Graph.api
     private val previousPlayer = Graph.player
     private val previousDownloads = Graph.downloads
     val downloadOffsets = CopyOnWriteArrayList<Long>()
     @Volatile var slowDownloads = true
+    @Volatile var lyricSoundMarkersOnly = false
+    @Volatile var musicPictureUnavailable = false
     private val cookies = SecureCookies(context, "interaction_fixture_session")
     private val sample = File(context.getExternalFilesDir(null), "interaction-sample.mp4")
     private val duration: Long
@@ -48,6 +50,14 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
     private var following = true
     private val followingIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>().apply { add(90); add(91) }
     private val addedFolders = CopyOnWriteArrayList<JSONObject>()
+    private val favoriteItems = ConcurrentHashMap<Long, MutableSet<Long>>().apply { put(500, ConcurrentHashMap.newKeySet<Long>().apply { add(100001); add(170001) }) }
+    private val deletedFolders = ConcurrentHashMap.newKeySet<Long>()
+    @Volatile var failNextFavoriteWrite = false
+    @Volatile var loseNextFavoriteWriteResponse = false
+    @Volatile var failNextFolderDelete = false
+    @Volatile var loseNextFolderDeleteResponse = false
+    @Volatile var failNextRecommendation = false
+    @Volatile var loseNextRecommendationResponse = false
     private val commentLikes = ConcurrentHashMap<Long, Boolean>()
     private val commentDislikes = ConcurrentHashMap<Long, Boolean>()
     val network = if (networkMedia) NetworkTestMedia(context) else null
@@ -112,28 +122,54 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
             val second = url.queryParameter("bvid") == "BV17x411w7KC"
             val path = url.encodedPath
             if (path == "/fixture-lyrics.json") {
-                val caption = JSONObject().put("body", JSONArray().put(JSONObject().put("from", 0).put("to", 8).put("content", "♪ 第一句字幕歌词 ♫")).put(JSONObject().put("from", 8).put("to", 16).put("content", "第二句字幕歌词")).put(JSONObject().put("from", 16).put("to", 45).put("content", "第三句字幕歌词")))
+                val caption = if (lyricSoundMarkersOnly) JSONObject().put("body", JSONArray().put(JSONObject().put("from", 0).put("to", 45).put("content", "[Music]")))
+                    else JSONObject().put("body", JSONArray().put(JSONObject().put("from", 0).put("to", 8).put("content", "♪ 第一句字幕歌词 ♫")).put(JSONObject().put("from", 8).put("to", 16).put("content", "第二句字幕歌词")).put(JSONObject().put("from", 16).put("to", 45).put("content", "第三句字幕歌词")))
                 return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-caption").body(caption.toString().toResponseBody("application/json".toMediaType())).build()
             }
             if (request.method != "GET") {
-                check(loggedIn && path in setOf("/x/web-interface/archive/like", "/x/v3/fav/resource/deal", "/x/web-interface/coin/add", "/x/v2/history/toview/add", "/x/v2/history/report", "/x/relation/modify", "/x/v2/reply/action", "/x/v2/reply/hate", "/x/v2/reply/add", "/x/v3/fav/folder/add")) { "Fixture forbids this write" }
+                check(loggedIn && path in setOf("/x/web-interface/archive/like", "/x/v3/fav/resource/deal", "/x/web-interface/coin/add", "/x/v2/history/toview/add", "/x/v2/history/report", "/x/relation/modify", "/x/v2/reply/action", "/x/v2/reply/hate", "/x/v2/reply/add", "/x/v3/fav/folder/add", "/x/v3/fav/folder/del", "/x/web-interface/feedback/dislike")) { "Fixture forbids this write" }
                 writes.getOrPut(path) { AtomicInteger() }.incrementAndGet()
                 val form = request.body as? FormBody
                 fun field(name: String) = (0 until (form?.size ?: 0)).firstOrNull { form!!.name(it) == name }?.let { form!!.value(it) }
                 writeForms[path] = (0 until (form?.size ?: 0)).associate { form!!.name(it) to form.value(it) }
+                if (path == "/x/web-interface/feedback/dislike" && failNextRecommendation) {
+                    failNextRecommendation = false
+                    return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-rejection")
+                        .body("""{"code":-400,"message":"模拟推荐反馈失败"}""".toResponseBody("application/json".toMediaType())).build()
+                }
+                if (path == "/x/v3/fav/resource/deal" && failNextFavoriteWrite || path == "/x/v3/fav/folder/del" && failNextFolderDelete) {
+                    val message = if (path.endsWith("/del")) "模拟删除收藏夹失败" else "模拟取消收藏失败"
+                    failNextFavoriteWrite = false; failNextFolderDelete = false
+                    return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-rejection")
+                        .body(JSONObject().put("code", -400).put("message", message).toString().toResponseBody("application/json".toMediaType())).build()
+                }
                 when (path) {
                     "/x/relation/modify" -> { following = field("act") == "1"; if (creatorData) { val mid = field("fid")!!.toLong(); if (following) followingIds.add(mid) else followingIds.remove(mid) } }
                     "/x/v2/reply/action" -> { val id = field("rpid")!!.toLong(); commentLikes[id] = field("action") == "1"; if (commentLikes[id] == true) commentDislikes[id] = false }
                     "/x/v2/reply/hate" -> { val id = field("rpid")!!.toLong(); commentDislikes[id] = field("action") == "1"; if (commentDislikes[id] == true) commentLikes[id] = false }
                     "/x/v3/fav/folder/add" -> addedFolders.add(JSONObject().put("id", 501 + addedFolders.size).put("title", field("title")).put("fav_state", 0))
+                    "/x/v3/fav/folder/del" -> { val id = field("media_ids")!!.toLong(); deletedFolders.add(id); favoriteItems.remove(id) }
                     "/x/web-interface/archive/like" -> liked = field("like") == "1"
-                    "/x/v3/fav/resource/deal" -> favorite = field("add_media_ids") != null
+                    "/x/v3/fav/resource/deal" -> {
+                        favorite = field("add_media_ids") != null
+                        if (favoriteData) {
+                            val id = (field("add_media_ids") ?: field("del_media_ids"))!!.toLong()
+                            val items = favoriteItems.getOrPut(id) { ConcurrentHashMap.newKeySet<Long>() }
+                            if (favorite) items.add(field("rid")!!.toLong()) else items.remove(field("rid")!!.toLong())
+                        }
+                    }
                     "/x/web-interface/coin/add" -> coins += field("multiply")?.toIntOrNull() ?: 0
                 }
                 if (path == "/x/v2/reply/add" && loseNextCommentWriteResponse) { loseNextCommentWriteResponse = false; throw java.io.IOException("Simulated lost reply response") }
+                if (path == "/x/v3/fav/resource/deal" && loseNextFavoriteWriteResponse) { loseNextFavoriteWriteResponse = false; throw java.io.IOException("Simulated lost favorite response") }
+                if (path == "/x/v3/fav/folder/del" && loseNextFolderDeleteResponse) { loseNextFolderDeleteResponse = false; throw java.io.IOException("Simulated lost folder response") }
+                if (path == "/x/web-interface/feedback/dislike" && loseNextRecommendationResponse) { loseNextRecommendationResponse = false; throw java.io.IOException("Simulated lost recommendation response") }
             }
             if (path == "/x/v2/reply/main" && failNextCommentRead) { failNextCommentRead = false; return@addInterceptor Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("fixture-error").body("""{"code":-403,"message":"模拟评论读取失败"}""".toResponseBody("application/json".toMediaType())).build() }
             val body = when (path) {
+                "/x/web-interface/wbi/index/top/feed/rcmd", "/x/web-interface/popular" -> JSONObject().put("item", JSONArray(listOf(video(false), video(true)).mapIndexed { i, j ->
+                    if (recommendationData) j.put("goto", "av").put("track_id", "UI-DEMO-RECOMMENDATION-$i") else j
+                }))
                 "/x/web-interface/nav" -> JSONObject().put("isLogin", loggedIn).put("mid", 9).put("uname", "模拟交互账号").put("wbi_img", JSONObject().put("img_url", "https://example.invalid/${"a".repeat(32)}.png").put("sub_url", "https://example.invalid/${"b".repeat(32)}.png"))
                 "/x/frontend/finger/spi" -> JSONObject().put("b_3", "fixture-only-buvid")
                 "/x/web-interface/view" -> {
@@ -153,7 +189,7 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                     requestedQualities.add(url.queryParameter("qn")?.toIntOrNull() ?: 0)
                     if (network != null) network.plan() else if (musicSample == null) JSONObject().put("timelength", duration).put("dash", JSONObject().put("video", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/sample.mp4" else Uri.fromFile(sample).toString()).put("id", 32).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000))).put("quality", 32))
                     else JSONObject().put("timelength", duration).put("dash", JSONObject()
-                        .put("video", JSONArray(listOf(32, 64).map { q -> JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/video-$q.mp4" else Uri.fromFile(musicSample.video).toString()).put("id", q).put("backupUrl", JSONArray().put("https://fixture.invalid/unwanted-video-probe")).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000) }))
+                        .put("video", JSONArray(listOf(32, 64).map { q -> JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/video-$q.mp4" else if (musicPictureUnavailable) Uri.fromFile(File(context.getExternalFilesDir(null), "missing-music-picture.mp4")).toString() else Uri.fromFile(musicSample.video).toString()).put("id", q).put("backupUrl", JSONArray().put("https://fixture.invalid/unwanted-video-probe")).put("codecs", "avc1").put("mimeType", "video/mp4").put("bandwidth", 100000) }))
                         .put("audio", JSONArray().put(JSONObject().put("baseUrl", if (downloadMedia) "https://fixture.invalid/audio.m4a" else Uri.fromFile(musicSample.audio).toString()).put("id", 30280).put("codecs", "mp4a.40.2").put("mimeType", "audio/mp4").put("bandwidth", 128000))))
                 }
                 "/x/player/wbi/v2" -> JSONObject().put("subtitle", JSONObject().put("subtitles", if (musicMedia && !second) JSONArray().put(JSONObject().put("lan", "zh-CN").put("subtitle_url", "https://aisubtitle.hdslb.com/fixture-lyrics.json")) else JSONArray()))
@@ -162,8 +198,18 @@ class InteractionFixture(private val instrumentation: Instrumentation, private v
                 "/x/relation" -> JSONObject().put("attribute", if (if (creatorData) (url.queryParameter("fid")?.toLongOrNull() ?: 0L) in followingIds else following) 2 else 0)
                 "/x/relation/followings" -> JSONObject().put("total", followingIds.size).put("list", JSONArray(followingIds.sorted().map { mid -> JSONObject().put("mid", mid).put("uname", rich!!.name(mid)).put("face", rich.avatar(mid)).put("sign", "UI DEMO · 独立测试关注资料") }))
                 "/x/v3/fav/folder/add" -> addedFolders.last()
-                "/x/v3/fav/folder/created/list-all" -> JSONObject().put("list", JSONArray().put(JSONObject().put("id", 500).put("title", "模拟收藏夹").put("fav_state", if (favorite) 1 else 0)).apply { addedFolders.forEach { put(it) } })
-                "/x/v3/fav/resource/list" -> JSONObject().put("has_more", false).put("medias", JSONArray().put(video(false)).put(video(true)))
+                "/x/v3/fav/folder/created/list-all" -> {
+                    val all = listOf(JSONObject().put("id", 500).put("title", "模拟收藏夹")) + addedFolders
+                    val list = all.filter { it.optLong("id") !in deletedFolders }.map { original -> JSONObject(original.toString()).apply {
+                        val items = favoriteItems[optLong("id")].orEmpty()
+                        put("media_count", if (favoriteData) items.size else 2)
+                        put("fav_state", if (if (favoriteData) (url.queryParameter("rid")?.toLongOrNull() ?: 0L) in items else favorite) 1 else 0)
+                    } }
+                    JSONObject().put("list", JSONArray(list))
+                }
+                "/x/v3/fav/resource/list" -> JSONObject().put("has_more", false).put("medias", JSONArray(listOf(video(false), video(true)).filter {
+                    !favoriteData || it.optLong("aid") in favoriteItems[url.queryParameter("media_id")?.toLongOrNull() ?: 0L].orEmpty()
+                }))
                 "/x/web-interface/wbi/search/type" -> if (rich != null && url.queryParameter("search_type") == "bili_user") rich.searchUsers() else JSONObject().put("numPages", 1).put("result", JSONArray().put(video(false)).put(video(true)))
                 "/x/web-interface/card" -> rich?.profile(url.queryParameter("mid")!!.toLong()) ?: JSONObject()
                 "/x/space/wbi/arc/search" -> (rich?.uploads(url.queryParameter("mid")!!.toLong()) ?: JSONObject()).apply {

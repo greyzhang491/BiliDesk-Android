@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -89,6 +93,10 @@ import kotlinx.coroutines.*
     var save by remember { mutableStateOf(false) }
     var batch by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showDevices by remember { mutableStateOf(false) }
+    var automaticDevice by remember { mutableStateOf<String?>(null) }
+    var automaticOffered by rememberSaveable { mutableStateOf(false) }
+    val syncState by Graph.musicSync.state.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
     var favorited by remember(video?.key, user?.mid) { mutableStateOf(false) }
     var download by remember { mutableStateOf<Pair<Video, Episode>?>(null) }
@@ -96,21 +104,41 @@ import kotlinx.coroutines.*
     val accent = if (appearance.coverColor) lerp(baseColor, Color.White, .65f) else Color(android.graphics.Color.parseColor(appearance.accent))
     val background by animateColorAsState(lerp(if (appearance.coverColor) baseColor else accent, Color.Black, appearance.darkness), tween(800), label = "封面背景")
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(pane, playback.music) { if (playback.music) engine.setMusicVideo(pane == 2) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_START) { automaticOffered = false; automaticDevice = null } }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val anotherPanel = showDevices || showQueue || showSettings || favorite || save || batch || menu || download != null || status.loadingPlaylist
+    LaunchedEffect(syncState.pending?.stamp, playback.playing, playback.loading, anotherPanel, windowFocused, automaticOffered) {
+        if (!automaticOffered && automaticDevice == null && windowFocused && !anotherPanel && !playback.playing && !playback.loading) syncState.pending?.let {
+            automaticOffered = true; automaticDevice = it.stamp.device
+        }
+    }
+    LaunchedEffect(pane, playback.music, playback.loading, playback.plan, playback.local) { if (playback.music) engine.setMusicVideo(pane == 2) }
     LaunchedEffect(playback.musicVisual) { if (pane == 2 && !playback.musicVisual && !playback.loading && playback.error == null) pane = 0 }
     DisposableEffect(engine) { onDispose { engine.setMusicVideo(false) } }
     LaunchedEffect(video?.aid, user?.mid) { if (video != null && video.aid > 0 && user != null) runCatching { Graph.api.folders(video.aid).any { it.selected } }.onSuccess { favorited = it } }
     LaunchedEffect(Unit) { if (vm.route.value.name == "music_player" || !embedded) vm.notices.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(playback.notice) { if (playback.music) playback.notice?.let { snackbar.showSnackbar(it); engine.clearNotice() } }
     if (showSettings) MusicAppearanceSheet { showSettings = false }
+    if (showDevices) DeviceResumeSheet(accent) { showDevices = false }
+    val automaticRecord = automaticDevice?.let { id -> syncState.devices.firstOrNull { it.stamp.device == id } }
+        ?.takeIf { syncState.pending != null && !playback.playing && !playback.loading && !showDevices }
+    automaticRecord?.let { record -> AutomaticResumeSheet(record, accent,
+        onResume = { automaticDevice = null; Graph.musicSync.resumeRemote(record) },
+        onLater = { automaticDevice = null; Graph.musicSync.dismissRemote(record) },
+        onDevices = { automaticDevice = null; Graph.musicSync.dismissRemote(record); showDevices = true }) }
     if (save && saveTrack != null) SaveTracksDialog(listOf(saveTrack), { save = false }, { save = false; vm.notices.tryEmit("已加入歌单") })
     if (batch && video != null) MusicBatchDialog(video, vm) { batch = false }
     if (favorite && video != null) MusicFavoriteDialog(video, vm) { favorite = false; scope.launch { runCatching { Graph.api.folders(video.aid).any { it.selected } }.onSuccess { favorited = it } } }
     download?.let { (v, ep) -> DownloadOptionsDialog(v, ep, { download = null }, audioDefault = true, onQueued = { vm.notices.tryEmit("已加入缓存队列") }) }
-    if (showQueue) AlertDialog(onDismissRequest = { showQueue = false }, title = { Text("播放队列") }, text = { MusicQueuePanel(vm, Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 450.dp), onSelect = { showQueue = false }) }, confirmButton = { TextButton(onClick = { showQueue = false }) { Text("完成") } })
+    if (showQueue) MusicQueueSheet(vm, accent, onDismiss = { showQueue = false })
     fun switchFace() {
         if (!playback.music) { controller.resume(); return }
-        pane = if (pane != 0) 0 else if (lyrics.isNotEmpty()) 1 else 2
+        pane = if (pane == 0) 1 else 0
     }
     fun cache() {
         val v = video ?: return
@@ -118,7 +146,8 @@ import kotlinx.coroutines.*
         if (ep != null) download = v to ep
         else scope.launch { try { val d = Graph.api.detail(v); d.pages.firstOrNull()?.let { download = d.video to it } } catch (e: Exception) { if (e is CancellationException) throw e; vm.notices.tryEmit(e.message ?: "无法读取歌曲") } }
     }
-    Box(modifier.background(Brush.verticalGradient(listOf(background, Color(0xFF11131D))))) {
+    BoxWithConstraints(modifier.background(Brush.verticalGradient(listOf(background, Color(0xFF11131D))))) {
+        val compact = maxHeight < 500.dp && maxWidth > maxHeight
         if (appearance.style == MusicStyle.IMMERSIVE && video?.cover?.isNotBlank() == true) AsyncImage(video.cover, null, Modifier.matchParentSize().blur(38.dp).alpha((1f - appearance.darkness) * .35f), contentScale = ContentScale.Crop)
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -126,6 +155,7 @@ import kotlinx.coroutines.*
                 Column(Modifier.weight(1f)) { Text("音乐", color = Color.White, fontSize = 16.sp); Text(appearance.style.label, fontSize = 10.sp, color = accent) }
                 IconButton(onClick = { vm.navigate("music_library", label = "我的歌单") }) { Icon(Icons.Default.LibraryMusic, "我的歌单", tint = Color.White) }
                 IconButton(onClick = { vm.navigate("music_search") }) { Icon(Icons.Default.Search, "搜索歌曲", tint = Color.White) }
+                if (syncState.configured) IconButton(onClick = { showDevices = true }) { Icon(Icons.Default.Devices, "选择设备续播记录", tint = Color.White) }
                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Palette, "音乐播放器设置", tint = Color.White) }
                 Box {
                     IconButton(onClick = { menu = true }, enabled = video != null) { Icon(Icons.Default.MoreVert, "当前歌曲选项", tint = Color.White) }
@@ -151,21 +181,22 @@ import kotlinx.coroutines.*
                     FilledTonalButton(onClick = { vm.navigate("music_search") }) { Text("去搜歌") }
                 }
             } else {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    when (pane) {
-                        1 -> LyricPage(lyrics, if (playback.music) playback.position else 0, onSeek = engine::seek, modifier = Modifier.fillMaxSize(), appearance = appearance, accent = accent)
-                        2 -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                            MusicVideoSurface(Modifier.fillMaxWidth().aspectRatio(16f / 9))
-                            if (status.lyricsLoading) Text("正在读取字幕", Modifier.padding(12.dp), color = Color.White.copy(alpha = .65f), fontSize = 11.sp)
-                            if (lyrics.isNotEmpty()) TextButton(onClick = { pane = 1 }) { Text("显示歌词", color = Color.White) }
+                val face: @Composable (Modifier) -> Unit = { faceModifier ->
+                    BoxWithConstraints(faceModifier, contentAlignment = Alignment.Center) {
+                        when (pane) {
+                            1 -> LyricPage(lyrics, if (playback.music) playback.position else 0, onSeek = engine::seek,
+                                modifier = Modifier.fillMaxSize(), appearance = appearance, accent = accent,
+                                loading = status.lyricsLoading, error = status.lyricsError, onRetry = controller::retryLyrics)
+                            2 -> MusicVideoSurface(Modifier.width(minOf(maxWidth, maxHeight * (16f / 9))).aspectRatio(16f / 9))
+                            else -> if (appearance.style == MusicStyle.RECORD) VinylRecord(video?.cover.orEmpty(), playback.music && playback.playing && appearance.animation, ::switchFace, Modifier.fillMaxSize(), onColor = { baseColor = it }, size = appearance.artworkSize)
+                                else MusicCover(video?.cover.orEmpty(), appearance, ::switchFace, Modifier.fillMaxSize()) { baseColor = it }
                         }
-                        else -> if (appearance.style == MusicStyle.RECORD) VinylRecord(video?.cover.orEmpty(), playback.music && playback.playing && appearance.animation, ::switchFace, Modifier.fillMaxSize(), onColor = { baseColor = it }, size = appearance.artworkSize)
-                            else MusicCover(video?.cover.orEmpty(), appearance, ::switchFace, Modifier.fillMaxSize()) { baseColor = it }
                     }
                 }
-                Row(Modifier.fillMaxWidth().widthIn(max = 600.dp), horizontalArrangement = Arrangement.Center) {
-                    TextButton(onClick = ::switchFace) { Text(if (pane == 0) if (lyrics.isNotEmpty()) "歌词" else "原视频" else "唱片", color = Color.White.copy(alpha = .75f), fontSize = 11.sp) }
+                val selector: @Composable () -> Unit = {
+                    MusicFaceSelector(pane, accent) { selected -> if (!playback.music) controller.resume(); pane = selected }
                 }
+                val controls: @Composable () -> Unit = {
                 Column(Modifier.widthIn(max = 600.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(track.displayTitle.ifBlank { video?.title.orEmpty() }, color = Color.White, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     Text(video?.author.orEmpty(), Modifier.clickable(enabled = video?.mid?.let { it > 0 } == true) { video?.let(vm::openCreator) }.padding(top = 7.dp, bottom = 8.dp), color = Color.White.copy(alpha = .6f), fontSize = 12.sp, maxLines = 1)
@@ -174,6 +205,13 @@ import kotlinx.coroutines.*
                         TextButton(onClick = { if (needsPicture) pane = 2 else engine.retry() }) { Text("${playback.error} · ${if (needsPicture) "显示原视频" else "重试"}", color = Color.White, fontSize = 11.sp) }
                     }
                     MusicTransport(vm, favorited || library.playlists.any { list -> list.tracks.any { it.key == saveTrack?.key || it.key == track.key } }, onFavorite = { save = true }, onQueue = { showQueue = true }, accent = accent)
+                }
+                }
+                if (compact) Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(.45f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) { face(Modifier.weight(1f).fillMaxWidth()); selector() }
+                    Box(Modifier.weight(.55f).padding(start = 12.dp), contentAlignment = Alignment.Center) { controls() }
+                } else {
+                    face(Modifier.weight(1f).fillMaxWidth()); selector(); controls()
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -193,7 +231,7 @@ import kotlinx.coroutines.*
     }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val diameter = minOf(maxWidth * size, maxHeight * size, 400.dp)
-        Box(Modifier.size(diameter).graphicsLayer { rotationZ = angle }.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF3A3C44), Color(0xFF090A0F)))).border(1.dp, Color.White.copy(alpha = .12f), CircleShape).clickable(onClick = onClick).semantics { contentDescription = "音乐唱片，点击切换歌词或原视频" }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(diameter).graphicsLayer { rotationZ = angle }.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF3A3C44), Color(0xFF090A0F)))).border(1.dp, Color.White.copy(alpha = .12f), CircleShape).clickable(onClick = onClick).semantics { contentDescription = "音乐唱片，点击切换歌词" }, contentAlignment = Alignment.Center) {
             for (fraction in listOf(.94f, .86f, .78f, .7f)) Box(Modifier.fillMaxSize(fraction).border(1.dp, Color.White.copy(alpha = .045f), CircleShape))
             Box(Modifier.fillMaxSize(.59f).clip(CircleShape).background(Color(0xFF63709B)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.MusicNote, null, Modifier.fillMaxSize(.4f), tint = Color.White.copy(alpha = .7f))
@@ -212,7 +250,7 @@ import kotlinx.coroutines.*
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val scale = appearance.artworkSize * if (appearance.style == MusicStyle.MINIMAL) .65f else 1f
         val diameter = minOf(maxWidth * scale, maxHeight * scale, 430.dp)
-        AsyncImage(ImageRequest.Builder(context).data(cover).allowHardware(false).build(), "歌曲封面，点击切换歌词或原视频",
+        AsyncImage(ImageRequest.Builder(context).data(cover).allowHardware(false).build(), "歌曲封面，点击切换歌词",
             Modifier.size(diameter).clip(RoundedCornerShape(if (appearance.style == MusicStyle.MINIMAL) 18.dp else 30.dp)).background(Brush.linearGradient(listOf(Color(0xFF66739F), Color(0xFF403947)))).clickable(onClick = onClick), contentScale = ContentScale.Crop,
             onSuccess = { result -> (result.result.drawable as? BitmapDrawable)?.bitmap?.let { bitmap -> scope.launch { onColor(withContext(Dispatchers.Default) { coverColor(bitmap) }) } } })
     }
@@ -228,12 +266,31 @@ private fun coverColor(bitmap: Bitmap): Color = runCatching {
     Color((red / count.coerceAtLeast(1) * .48).toInt().coerceIn(24, 115), (green / count.coerceAtLeast(1) * .48).toInt().coerceIn(24, 115), (blue / count.coerceAtLeast(1) * .48).toInt().coerceIn(30, 125))
 }.getOrDefault(Color(0xFF343B65))
 
-@Composable private fun LyricPage(cues: List<LyricCue>, position: Long, onSeek: (Long) -> Unit, modifier: Modifier = Modifier, appearance: MusicPreferences, accent: Color) {
+@Composable private fun MusicFaceSelector(selected: Int, accent: Color, onSelect: (Int) -> Unit) {
+    Row(Modifier.widthIn(max = 280.dp).fillMaxWidth().padding(vertical = 10.dp).clip(CircleShape).background(Color.White.copy(alpha = .065f)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        listOf("唱片", "歌词", "原视频").forEachIndexed { index, label ->
+            Box(Modifier.weight(1f).height(36.dp).clip(CircleShape).background(if (selected == index) accent.copy(alpha = .2f) else Color.Transparent)
+                .clickable { onSelect(index) }.semantics { contentDescription = "显示$label" }.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+                Text(label, color = if (selected == index) accent else Color.White.copy(alpha = .6f), fontSize = 12.sp, maxLines = 1, softWrap = false, fontWeight = if (selected == index) FontWeight.SemiBold else FontWeight.Normal)
+            }
+        }
+    }
+}
+
+@Composable private fun LyricPage(cues: List<LyricCue>, position: Long, onSeek: (Long) -> Unit, modifier: Modifier = Modifier,
+    appearance: MusicPreferences, accent: Color, loading: Boolean, error: String?, onRetry: () -> Unit) {
     val list = rememberLazyListState(); val active = Lyrics.current(cues, position)
     var follow by remember { mutableStateOf(true) }
     LaunchedEffect(active, follow, cues) { if (follow && active >= 0) list.animateScrollToItem(active, -(list.layoutInfo.viewportSize.height / 3)) }
     Box(modifier.semantics { contentDescription = "同步滚动歌词" }) {
-        LazyColumn(Modifier.fillMaxSize().pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); follow = false } }, state = list, contentPadding = PaddingValues(vertical = 90.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
+        if (cues.isEmpty()) Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (loading) CircularProgressIndicator(Modifier.size(26.dp), color = accent, strokeWidth = 2.dp)
+            else Icon(Icons.Default.Lyrics, null, Modifier.size(42.dp), tint = accent.copy(alpha = .7f))
+            Text(if (loading) "正在加载歌词" else if (error != null) "歌词暂时加载失败" else "暂时没有可用歌词", Modifier.padding(top = 16.dp), color = Color.White.copy(alpha = .85f), fontSize = 15.sp)
+            if (!loading) { Text("继续听歌，也可以切换到原视频", Modifier.padding(top = 8.dp), color = Color.White.copy(alpha = .5f), fontSize = 12.sp)
+                TextButton(onClick = onRetry, Modifier.padding(top = 8.dp)) { Text("重新读取", color = accent) } }
+        }
+        if (cues.isNotEmpty()) LazyColumn(Modifier.fillMaxSize().pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); follow = false } }, state = list, contentPadding = PaddingValues(vertical = 90.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(22.dp)) {
             itemsIndexed(cues, key = { index, cue -> "$index:${cue.startMs}" }) { index, cue ->
                 Text(Lyrics.displayText(cue.text), Modifier.fillMaxWidth().clickable { onSeek(cue.startMs); follow = true }.padding(horizontal = 12.dp), color = if (index == active) accent else Color.White.copy(alpha = .45f), fontSize = (appearance.lyricSize - if (index == active) 0 else 3).sp, lineHeight = (appearance.lyricSize * 1.5f).sp, fontWeight = if (index == active) FontWeight.Bold else FontWeight.Normal, textAlign = if (appearance.lyricsLeft) TextAlign.Start else TextAlign.Center)
             }
@@ -245,7 +302,19 @@ private fun coverColor(bitmap: Bitmap): Color = runCatching {
 @Composable private fun MusicVideoSurface(modifier: Modifier) {
     val engine = Graph.player
     val playback by engine.state.collectAsStateWithLifecycle()
-    AndroidView(factory = { ctx -> PlayerView(ctx).apply { tag = "bilidesk_music_video"; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; PlayerViewHost.attach(this, engine.exo) } }, update = { PlayerViewHost.attach(it, engine.exo); it.keepScreenOn = playback.playing }, onRelease = { PlayerViewHost.release(it) }, modifier = modifier.background(Color.Black).semantics { contentDescription = "音乐原视频画面" })
+    val picture by engine.musicPicture.state.collectAsStateWithLifecycle()
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black).semantics { contentDescription = "音乐原视频画面" }) {
+        AndroidView(factory = { ctx -> PlayerView(ctx).apply { tag = "bilidesk_music_video"; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT } },
+            update = { it.player = engine.musicVideoPlayer; it.keepScreenOn = playback.playing }, onRelease = { it.player = null }, modifier = Modifier.fillMaxSize())
+        if (picture.error != null) Column(Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = .7f)).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(picture.error!!, color = Color.White, fontSize = 14.sp)
+            Text("音乐仍可继续播放", Modifier.padding(top = 6.dp), color = Color.White.copy(alpha = .6f), fontSize = 12.sp)
+            TextButton(onClick = engine::retryMusicVideo) { Text("重新加载画面", color = Color.White) }
+        } else if (picture.requested && !picture.ready) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+            Text("正在加载画面", Modifier.padding(top = 12.dp), color = Color.White.copy(alpha = .75f), fontSize = 12.sp)
+        }
+    }
 }
 
 @Composable private fun MusicTransport(vm: AppViewModel, favorited: Boolean, onFavorite: () -> Unit, onQueue: () -> Unit, accent: Color) {

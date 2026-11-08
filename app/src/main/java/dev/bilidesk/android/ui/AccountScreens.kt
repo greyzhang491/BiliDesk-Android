@@ -211,6 +211,7 @@ import kotlinx.coroutines.*
         item { SwitchSetting("启用片段跳过", "使用上游同款第三方服务 bsbsb.top；开启后会向其发送当前 BV 号。标注由社区提供，失败不影响播放，下次打开视频生效。", s.sponsor) { save(s.copy(sponsor = it)) } }
         item { MenuRow(Icons.Default.SkipNext, "跳过类别", s.sponsorCategories) { categoryDialog = true } }
         item { SettingsHeading("账号与应用") }
+        item { MenuRow(Icons.Default.CloudSync, "跨设备同步", "坚果云 · 歌单、队列和播放进度") { vm.navigate("music_sync", label = "跨设备同步") } }
         item { MenuRow(Icons.Default.Info, "关于与开源许可", "BiliDesk Android ${BuildConfig.VERSION_NAME}") { vm.navigate("about") } }
         item { if (user != null) OutlinedButton(onClick = { showLogout = true }, Modifier.fillMaxWidth().padding(vertical = 16.dp)) { Text("退出登录") } else OutlinedButton(onClick = { vm.navigate("login") }, Modifier.fillMaxWidth().padding(vertical = 16.dp)) { Text("登录账号") } }
     }

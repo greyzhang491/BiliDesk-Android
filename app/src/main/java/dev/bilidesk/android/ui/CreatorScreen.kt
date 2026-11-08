@@ -33,10 +33,12 @@ import kotlinx.coroutines.CancellationException
 /** A full-window profile keeps the comments composition and its exact scroll position alive. */
 @Composable fun CreatorProfileDialog(seed: CreatorProfile, vm: AppViewModel, onDismiss: () -> Unit, onVideo: (Video) -> Unit, current: Video? = null, onSelection: ((Video, List<Video>, Int, String) -> Unit)? = null) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val returnToShorts = remember { vm.videoWasShorts }
         val snackbar = remember { SnackbarHostState() }
         val context = LocalContext.current
         var chosen by remember(seed.mid, seed.name) { mutableStateOf(seed.takeIf { it.mid > 0 }) }
         LaunchedEffect(vm) { vm.notices.collect { snackbar.showSnackbar(it) } }
+        Box(Modifier.fillMaxSize()) {
         Scaffold(containerColor = MaterialTheme.colorScheme.surface, snackbarHost = { SnackbarHost(snackbar) }, topBar = {
             TopAppBar(title = { Text(if (chosen == null) "查找 @${seed.name}" else "用户主页", fontSize = 18.sp) }, navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭用户主页") } }, actions = {
                 chosen?.let { current -> IconButton(onClick = { browse(context, "https://space.bilibili.com/${current.mid}") }) { Icon(Icons.Default.OpenInNew, "在官方页面打开用户主页") } }
@@ -45,6 +47,8 @@ import kotlinx.coroutines.CancellationException
             val selectedProfile = chosen
             if (selectedProfile == null) MentionUserLookup(seed.name, Modifier.fillMaxSize().padding(padding)) { chosen = it }
             else key(selectedProfile.mid) { CreatorScreen(selectedProfile, vm, Modifier.fillMaxSize().padding(padding), onVideo, current = current, onSelection = onSelection) }
+        }
+        CreatorFloatingVideo(vm) { onDismiss(); vm.returnFromProfile(returnToShorts) }
         }
     }
 }

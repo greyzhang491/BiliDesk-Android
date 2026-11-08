@@ -44,7 +44,7 @@ class MainActivity: ComponentActivity() {
         }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handleIntent(intent) }
-    override fun onStart() { super.onStart(); Graph.player.resumeVideoTrack(); vm.refreshUser() }
+    override fun onStart() { super.onStart(); Graph.player.resumeVideoTrack(); vm.refreshUser(); Graph.musicSync.setForeground(true) }
     private fun handleIntent(intent: Intent?) {
         when {
             intent?.getBooleanExtra("open_player", false) == true -> vm.openPlayer()
@@ -54,5 +54,5 @@ class MainActivity: ComponentActivity() {
         }
     }
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) { super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig); pip = isInPictureInPictureMode }
-    override fun onStop() { super.onStop(); if (!isInPictureInPictureMode && !isChangingConfigurations) Graph.player.pauseForBackground() }
+    override fun onStop() { super.onStop(); if (!isInPictureInPictureMode && !isChangingConfigurations) Graph.player.pauseForBackground(); Graph.musicSync.setForeground(false) }
 }

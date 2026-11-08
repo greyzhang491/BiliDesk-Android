@@ -56,6 +56,11 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
     private var triedAvcFallback = false
     private var primaryAudioKey = ""
     private var primaryAudioItem: MediaItem? = null
+    private var combinedMusicSource = false
+    private val pictureOwner = lazy { MusicPicture(context, api, store, exo, mediaHttp) }
+    val musicPicture get() = pictureOwner.value
+    private fun closeMusicPicture() { if (pictureOwner.isInitialized()) pictureOwner.value.close() }
+    val musicVideoPlayer: ExoPlayer? get() = if (!_state.value.musicVisual) null else if (combinedMusicSource) exo else if (pictureOwner.isInitialized()) pictureOwner.value.player else null
     private val _state = MutableStateFlow(PlaybackState())
     val state = _state.asStateFlow()
     val music = MusicController(context, api, this, musicPreferenceName)
@@ -86,7 +91,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
                     override fun onPlayerError(error: PlaybackException) {
                         val s = _state.value
                         val codec = s.plan?.video?.codec.orEmpty()
-                        val audioOnly = s.music && !s.musicVisual && s.plan?.audio != null
+                        val audioOnly = s.music && s.plan?.audio != null
                         if (!audioOnly && !s.local && PlaybackFallbackPolicy.needsAvc(codec, error.errorCode, error) && !triedAvcFallback) {
                             triedAvcFallback = true
                             fallbackToAvc(exo.currentPosition.coerceAtLeast(0))
@@ -140,6 +145,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
             if (forceRestart || exo.playbackState == Player.STATE_ENDED) exo.seekTo(0)
             exo.play(); return
         }
+        closeMusicPicture(); combinedMusicSource = false
         if (asMusic) {
             val cached = store.caches.value.filter { it.video.key == video.key && (musicCid == 0L || it.cid == musicCid) && store.cacheFile(it).isFile }.sortedBy { if (it.type == "audio") 0 else 1 }.firstOrNull()
             if (cached != null) {
@@ -242,7 +248,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
     private fun selectMusicAudio(plan: PlayPlan): PlayPlan = plan.copy(audio = MusicAudioPolicy.select(plan.audioOptions.ifEmpty { listOfNotNull(plan.audio) }, store.settings.value.music.audioQuality) ?: plan.audio)
     private fun attach(plan: PlayPlan, position: Long, autoplay: Boolean = true) {
         val detail = _state.value.detail ?: return
-        val audioOnly = _state.value.music && !_state.value.musicVisual
+        val audioOnly = _state.value.music && (plan.audio != null || !_state.value.musicVisual && !combinedMusicSource)
         if (audioOnly && plan.audio == null) {
             exo.stop(); exo.clearMediaItems()
             _state.value = _state.value.copy(plan = plan, loading = false, playing = false, local = false, error = "此内容没有独立音轨，可切换原视频播放；将消耗视频流量")
@@ -347,6 +353,7 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         playLocal(cache, detail, 0, 0)
     }
     private fun playLocal(cache: CacheEntry, detail: VideoDetail, index: Int, position: Long) {
+        closeMusicPicture(); combinedMusicSource = false
         val asMusic = _state.value.music; val visual = _state.value.musicVisual && cache.type != "audio"
         store.pinCache(cache.key)
         scope.launch(Dispatchers.IO) { store.touchCache(cache.key) }
@@ -367,21 +374,30 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         val p = exo.currentPosition / 1000
         scope.launch { runCatching { api.report(aid, e.cid, p) } }
     }
-    fun setMusicVideo(show: Boolean) {
+    fun setMusicVideo(show: Boolean, fresh: Boolean = false) {
         val state = _state.value
-        if (!state.music || state.musicVisual == show) return
-        _state.value = state.copy(musicVisual = show)
-        val audioCache = state.local && state.cacheType == "audio"
-        if (show && audioCache) {
-            val token = ++generation; val position = exo.currentPosition
-            prepareJob?.cancel(); prepareJob = scope.launch {
-                try { prepare(state.pageIndex, position, token, useCache = false) }
-                catch (e: Exception) { if (e is CancellationException) throw e; _state.value = _state.value.copy(local = state.local, cacheType = state.cacheType, error = null, loading = false, musicVisual = false, notice = "原视频画面暂时无法读取，继续播放音频") }
-            }
+        if (!state.music) { if (!show) closeMusicPicture(); return }
+        if (!show) {
+            closeMusicPicture(); _state.value = state.copy(musicVisual = false)
+            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
+            return
         }
-        else if (!state.local) state.plan?.let { attach(it, exo.currentPosition.coerceAtLeast(0), autoplay = exo.playWhenReady || state.error != null) }
-        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !show).build()
+        _state.value = state.copy(musicVisual = show)
+        if (state.loading || currentEpisode() == null) return
+        if (!state.local && state.plan?.audio == null && state.plan != null) {
+            if (!combinedMusicSource) {
+                combinedMusicSource = true
+                exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false).build()
+                attach(state.plan, exo.currentPosition.coerceAtLeast(0), autoplay = exo.playWhenReady || state.error != null)
+                _state.value = _state.value.copy(notice = "此内容没有独立音轨，播放会使用视频流量")
+            } else exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false).build()
+            return
+        }
+        if (musicPicture.state.value.requested) return
+        val local = if (state.local && state.cacheType != "audio") store.caches.value.firstOrNull { it.key == exo.currentMediaItem?.mediaId }?.let(store::cacheFile)?.takeIf { it.isFile } else null
+        musicPicture.show(state.detail ?: return, currentEpisode() ?: return, if (fresh) null else state.plan, local, fresh)
     }
+    fun retryMusicVideo() { closeMusicPicture(); setMusicVideo(true, fresh = true) }
     fun musicQuality(quality: MusicAudioQuality) {
         store.update(store.settings.value.copy(music = store.settings.value.music.copy(audioQuality = quality)))
         val state = _state.value
@@ -390,14 +406,14 @@ class PlayerEngine(private val context: Context, private val api: BiliApi, priva
         val selected = selectMusicAudio(plan)
         if (selected.audio?.url != plan.audio?.url) { renewals = 0; attach(selected, exo.currentPosition.coerceAtLeast(0), exo.playWhenReady) }
     }
-    fun resumeVideoTrack() { if (_state.value.detail != null) exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, _state.value.music && !_state.value.musicVisual).build() }
+    fun resumeVideoTrack() { if (_state.value.detail != null) exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, _state.value.music && (!combinedMusicSource || !_state.value.musicVisual)).build() }
     fun pauseForBackground() {
         if (_state.value.detail == null) return
         if (_state.value.music) { if (_state.value.musicVisual) setMusicVideo(false) }
         else if (!store.settings.value.background) { exo.pause(); saveHistory(); reportHistory() }
         else exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
     }
-    fun stop() { music.snapshot(); saveHistory(); reportHistory(); prepareJob?.cancel(); dmJob?.cancel(); sponsorJob?.cancel(); generation++; exo.stop(); exo.clearMediaItems(); store.pinCache(null); _state.value = PlaybackState() }
+    fun stop() { music.snapshot(); saveHistory(); reportHistory(); closeMusicPicture(); combinedMusicSource = false; prepareJob?.cancel(); dmJob?.cancel(); sponsorJob?.cancel(); generation++; exo.stop(); exo.clearMediaItems(); store.pinCache(null); _state.value = PlaybackState() }
     /** Final owner teardown, after activities and media sessions have detached. */
-    fun release() { stop(); music.release(); scope.cancel(); exo.release() }
+    fun release() { stop(); if (pictureOwner.isInitialized()) pictureOwner.value.release(); music.release(); scope.cancel(); exo.release() }
 }

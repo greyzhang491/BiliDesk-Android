@@ -20,7 +20,7 @@ data class Video(
     val bvid: String = "", val aid: Long = 0, val title: String = "", val cover: String = "",
     val author: String = "", val mid: Long = 0, val plays: Long = 0, val danmaku: Long = 0,
     val duration: Long = 0, val kind: String = "video", val targetId: Long = 0, val subtitle: String = "",
-    val authorAvatar: String = "", val publishedAt: Long = 0
+    val authorAvatar: String = "", val publishedAt: Long = 0, val recommendation: RecommendationContext? = null
 ) {
     val key get() = if (kind == "video") bvid.ifBlank { "av$aid" } else "$kind$targetId"
     val url get() = when (kind) { "live" -> "https://live.bilibili.com/$targetId"; "season" -> "https://www.bilibili.com/bangumi/play/ss$targetId"; else -> "https://www.bilibili.com/video/${bvid.ifBlank { "av$aid" }}" }

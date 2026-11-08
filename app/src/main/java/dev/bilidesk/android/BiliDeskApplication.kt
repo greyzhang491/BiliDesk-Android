@@ -11,6 +11,8 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import java.io.File
+import dev.bilidesk.android.sync.MusicSync
+import dev.bilidesk.android.sync.SyncUploadWorker
 
 class BiliDeskApplication: Application(), ImageLoaderFactory {
     override fun newImageLoader() = ImageLoader.Builder(this)
@@ -26,6 +28,8 @@ class BiliDeskApplication: Application(), ImageLoaderFactory {
         Graph.api = BiliApi(Graph.cookies, Graph.store)
         Graph.player = PlayerEngine(this, Graph.api, Graph.store)
         Graph.downloads = Downloads(this, Graph.api, Graph.store)
+        Graph.musicSync = MusicSync(this, Graph.player, Graph.store,
+            pendingWork = { SyncUploadWorker.enqueue(this) }, cancelWork = { SyncUploadWorker.cancel(this) })
     }
 }
 object Graph {
@@ -34,4 +38,5 @@ object Graph {
     lateinit var api: BiliApi
     lateinit var player: PlayerEngine
     lateinit var downloads: Downloads
+    lateinit var musicSync: MusicSync
 }

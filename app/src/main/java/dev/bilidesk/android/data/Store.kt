@@ -51,6 +51,7 @@ class Store(context: Context) {
     private val maintenance = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val files = context.filesDir
     val feedSnapshots = FeedSnapshots(File(context.cacheDir, "feed-snapshots"))
+    val recommendations = RecommendationFilters(context)
     private val _settings = MutableStateFlow(readSettings())
     val settings = _settings.asStateFlow()
     private val _history = MutableStateFlow(readList("history.json").objects().mapNotNull { j -> runCatching { HistoryEntry(Video.from(j.obj("video")), j.getLong("cid"), j.getLong("position"), j.getLong("at")) }.getOrNull() })
@@ -99,6 +100,12 @@ class Store(context: Context) {
     @Synchronized fun record(video: Video, cid: Long, positionMs: Long) {
         _history.value = (listOf(HistoryEntry(video, cid, positionMs.coerceAtLeast(0), System.currentTimeMillis())) + _history.value.filter { it.video.key != video.key }).take(200)
         writeList("history.json", JSONArray(_history.value.map { JSONObject().put("video", it.video.json()).put("cid", it.cid).put("position", it.positionMs).put("at", it.at) }))
+    }
+    @Synchronized internal fun syncHistory(transform: (List<HistoryEntry>) -> List<HistoryEntry>) {
+        val merged = transform(_history.value)
+        if (merged == _history.value) return
+        writeList("history.json", JSONArray(merged.map { JSONObject().put("video", it.video.json()).put("cid", it.cid).put("position", it.positionMs).put("at", it.at) }))
+        _history.value = merged
     }
     @Synchronized fun addCache(entry: CacheEntry) {
         _caches.value = listOf(entry) + _caches.value.filter { it.key != entry.key }

@@ -3,14 +3,18 @@
 package dev.bilidesk.android.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,8 +27,8 @@ import kotlinx.coroutines.*
 @Composable fun PlaylistNameDialog(initial: String = "", onDismiss: () -> Unit, onSave: suspend (String) -> Unit) {
     var name by remember { mutableStateOf(initial) }; var busy by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(if (initial.isEmpty()) "新建本机歌单" else "重命名歌单") }, text = { Column {
-        OutlinedTextField(name, { name = it }, label = { Text("歌单名称（1～40个字）") }, singleLine = true, enabled = !busy)
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(if (initial.isEmpty()) "新建歌单" else "重命名歌单") }, text = { Column {
+        OutlinedTextField(name, { name = it }, label = { Text("歌单名称") }, singleLine = true, enabled = !busy)
         error?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error) }
     } }, confirmButton = { TextButton(enabled = !busy && runCatching { MusicLibraryState.validName(name) }.isSuccess, onClick = { busy = true; scope.launch {
         try { onSave(name.trim()); onDismiss() } catch (e: Exception) { if (e is CancellationException) throw e; error = e.message } finally { busy = false }
@@ -37,11 +41,19 @@ import kotlinx.coroutines.*
     var create by remember { mutableStateOf(false) }; var busy by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     if (create) PlaylistNameDialog(onDismiss = { create = false }, onSave = { library.create(it, tracks); onSaved() })
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text("加入歌单 · ${tracks.size} 首") }, text = { Column {
-        Text("保存到本机，保留每个分P；播放队列继续播放。", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(Modifier.heightIn(max = 300.dp)) { items(state.playlists, key = { it.id }) { playlist -> TextButton(enabled = !busy && tracks.isNotEmpty(), onClick = {
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text("收藏到歌单") }, text = { Column {
+        Text(if (tracks.size == 1) tracks.first().displayTitle else "已选 ${tracks.size} 首歌曲", maxLines = 2, overflow = TextOverflow.Ellipsis,
+            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
+        LazyColumn(Modifier.heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { items(state.playlists, key = { it.id }) { playlist ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)).clickable(enabled = !busy && tracks.isNotEmpty(), onClick = {
             busy = true; scope.launch { try { library.add(playlist.id, tracks); onSaved() } catch (e: Exception) { if (e is CancellationException) throw e; error = e.message } finally { busy = false } }
-        }, modifier = Modifier.fillMaxWidth()) { Text(playlist.name, Modifier.weight(1f)); Text("${playlist.tracks.size} 首", fontSize = 11.sp) } } }
+        }).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PlaylistPlay, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) { Text(playlist.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${playlist.tracks.size} 首", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)) }
+                if (tracks.isNotEmpty() && tracks.all { t -> playlist.tracks.any { it.key == t.key } }) Icon(Icons.Default.Check, "已收藏", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        } }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
     } }, confirmButton = { TextButton(enabled = !busy && tracks.isNotEmpty(), onClick = { create = true }) { Text("新建歌单") } }, dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("取消") } })
 }

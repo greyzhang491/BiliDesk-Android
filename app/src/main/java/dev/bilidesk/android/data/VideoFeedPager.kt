@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class VideoFeedContent(
     val videos: List<Video> = emptyList(), val nextPage: Int = 1, val more: Boolean = true,
@@ -30,6 +31,19 @@ class VideoFeedPager(
     private val _state = MutableStateFlow(VideoFeedContent(videos = initial.filter(accept).distinctBy { it.key }, nextPage = initialNextPage))
     val state = _state.asStateFlow()
 
+    /** Recommendation filtering is local; it does not shift the server's pagination offset. */
+    suspend fun filterRecommendations(keep: (Video) -> Boolean) = gate.withLock {
+        _state.value = _state.value.copy(videos = _state.value.videos.filter(keep))
+    }
+
+    /** Remove after the server confirms. Offset pagination must revisit the boundary shifted by deletion. */
+    suspend fun removeFavorite(key: String) = gate.withLock {
+        val before = _state.value
+        val remaining = before.videos.filterNot { it.key == key }
+        if (remaining.size != before.videos.size) _state.value = before.copy(videos = remaining,
+            nextPage = initialPage + remaining.size / 20, error = null, refreshFailed = false)
+    }
+
     suspend fun load(reset: Boolean = false): Boolean {
         val version = if (reset) refreshVersion.incrementAndGet() else 0
         if (reset) {
@@ -53,6 +67,17 @@ class VideoFeedPager(
                 var result = loadPage(page)
                 var lastPage = page
                 val incoming = result.videos.filter(accept).distinctBy { it.key }.toMutableList()
+                val rawSeen = result.videos.map { it.key }.toMutableSet()
+                var hiddenPages = 0
+                // A fully filtered page must not hide valid recommendations on the next page.
+                // Bound the look-ahead and stop on repeats rather than looping through blocked content.
+                while (incoming.isEmpty() && result.videos.isNotEmpty() && result.more && hiddenPages < 2) {
+                    result = loadPage(++lastPage); hiddenPages++
+                    val fresh = result.videos.any { it.key !in rawSeen }
+                    rawSeen.addAll(result.videos.map { it.key })
+                    incoming.addAll(result.videos.filter(accept).distinctBy { it.key })
+                    if (!fresh) break
+                }
                 val seen = before.videos.map { it.key }.toSet()
                 // Popular/fallback feeds may repeat page 1. Look ahead only a bounded amount,
                 // then promote genuinely new items instead of keeping repeated cards at the top.

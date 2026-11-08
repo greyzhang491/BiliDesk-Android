@@ -100,7 +100,7 @@ class MusicNavigationDeviceTest {
                     assertTrue(waitFor { device.displayWidth > device.displayHeight })
                     assertNavigation(true)
                     if (tablet) {
-                        val cover = button("音乐唱片，点击切换歌词或原视频").visibleBounds
+                        val cover = button("音乐唱片，点击切换歌词").visibleBounds
                         val folder = text("模拟收藏夹").visibleBounds
                         assertTrue("Tablet split layout changed", cover.left > folder.right)
                     }

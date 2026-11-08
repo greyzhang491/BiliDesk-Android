@@ -38,3 +38,15 @@
 0.2.2：`CreatorIdentity`异步显示头像与粉丝数；`CreatorScreen`统一主页搜索与当前投稿定位；`FollowingScreen`负责我的关注分页与状态更新。AppViewModel持有主页弹层和可观察短视频会话，打开主页不能释放共享播放器。投稿选择携带同UP分页和关键词，不能回退为普通推荐或普通播放器。所有已有space入口复用此页。
 
 短视频切换会话时，收集分页StateFlow与PagerState都以ShortSession为key；不能让新的selectedIndex与上一队列的旧列表组合，否则选择非首行会被错误截到索引0。主页投稿播放方式按打开页面的路由决定，不能只看后台是否正在听音乐。
+
+0.2.3—0.2.5新增入口：
+
+| 入口 | 责任 |
+| --- | --- |
+| `MusicSyncScreen`、`DeviceResumeSheet` | 单独配置授权、保护密钥显示、设备改名、手动与自动续播选择 |
+| `MusicQueuePanel` | 共用队列面板、逐曲收藏／下一首、定位当前与拖动预览 |
+| `CreatorFloatingVideo`、`FloatingVideoGeometry` | 同一播放会话的小窗移动／四角缩放与边界、双击返回来源模式 |
+| `FavoriteManagement` | 删除确认、未知结果只读核对、成功后更新列表 |
+| `RecommendationFeedbackScreen` | 发现／短视频共用反馈原因选择与提交状态 |
+
+同步界面不得预填个人账号或密钥；原视频加载状态不得阻断主音频。窄横屏原视频需同时约束宽高，避免16:9画面覆盖展示切换按钮。操作入口与边界见[当前使用指南](../../../../../../../../docs/RELEASE-0.2.5.md)。

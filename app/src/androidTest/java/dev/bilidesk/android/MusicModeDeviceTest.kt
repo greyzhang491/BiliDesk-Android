@@ -49,12 +49,12 @@ class MusicModeDeviceTest {
                     assertTrue("Music did not decode audio", waitFor { Graph.player.state.value.music && Graph.player.exo.isPlaying && (Graph.player.exo.audioDecoderCounters?.renderedOutputBufferCount ?: 0) > 0 })
                     device.wait(Until.findObject(By.text("Got it")), 1500)?.click()
                     assertTrue("Caption timestamps were not loaded", waitFor { Graph.player.music.status.value.lyrics.size == 3 })
-                    assertNotNull(device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 10000))
+                    assertNotNull(device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词")), 10000))
                     device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "music-vinyl.png"))
                     scenario.onActivity { Graph.player.seek(1000) }
                     var media: Any? = null
                     scenario.onActivity { media = Graph.player.exo.currentMediaItem }
-                    device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 10000)!!.click()
+                    device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词")), 10000)!!.click()
                     assertTrue(device.wait(Until.hasObject(By.desc("同步滚动歌词")), 10000))
                     device.wait(Until.findObject(By.text("第二句字幕歌词")), 10000)!!.click()
                     assertTrue("Lyric tap did not seek to its timestamp", waitFor { Graph.player.exo.currentPosition in 8000..15000 && Graph.player.exo.isPlaying })
@@ -87,7 +87,7 @@ class MusicModeDeviceTest {
                     assertTrue("Session next did not play the manually queued song", waitFor { Graph.player.state.value.detail?.video?.bvid == "BV17x411w7KC" && Graph.player.exo.isPlaying })
                     assertTrue(waitFor { !Graph.player.music.status.value.lyricsLoading && Graph.player.music.status.value.lyrics.isEmpty() })
                     scenario.onActivity { vm!!.openMusicPlayer(); media = Graph.player.exo.currentMediaItem; Graph.player.seek(5000) }
-                    device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 10000)!!.click()
+                    device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词")), 10000)!!.click()
                     assertTrue("No-caption track did not show original video", waitFor { Graph.player.state.value.musicVisual && Graph.player.exo.isPlaying && (Graph.player.exo.videoDecoderCounters?.renderedOutputBufferCount ?: 0) > 0 && PlayerViewHost.currentView?.tag == "bilidesk_music_video" })
                     scenario.onActivity { assertSame("Video fallback replaced the playing media", media, Graph.player.exo.currentMediaItem) }
                     device.takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "music-original-video.png"))
@@ -100,7 +100,7 @@ class MusicModeDeviceTest {
                     if (tablet) {
                         device.setOrientationLeft()
                         assertTrue(waitFor { device.displayWidth > device.displayHeight })
-                        val cover = device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词或原视频")), 15000)!!
+                        val cover = device.wait(Until.findObject(By.desc("音乐唱片，点击切换歌词")), 15000)!!
                         val folder = device.wait(Until.findObject(By.text("模拟收藏夹")), 15000)!!
                         assertTrue("Tablet cover must be to the right of the song library", cover.visibleBounds.left > folder.visibleBounds.right)
                     }

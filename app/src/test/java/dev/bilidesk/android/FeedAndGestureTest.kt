@@ -9,6 +9,27 @@ import org.junit.Test
 
 class FeedAndGestureTest {
     private fun videos(vararg ids: Long) = ids.map { Video(aid = it, title = "video $it") }
+    @Test fun aFilteredRecommendationPageCanAdvanceToVisibleContentWithoutAnUnboundedLoop() = runBlocking {
+        val calls = mutableListOf<Int>()
+        val pager = VideoFeedPager({ page -> calls += page; FeedPage(videos(page.toLong())) }, accept = { it.aid >= 3 })
+        pager.load(); assertEquals(listOf(3L), pager.state.value.videos.map { it.aid }); assertEquals(listOf(1, 2, 3), calls)
+        val hidden = VideoFeedPager({ page -> FeedPage(videos(page.toLong())) }, accept = { false })
+        hidden.load(); assertFalse(hidden.state.value.more); assertEquals(4, hidden.state.value.nextPage)
+    }
+    @Test fun favoriteRemovalRevisitsTheShiftedPageBoundaryWithoutLosingVideos() = runBlocking {
+        val server = (1L..65L).map { Video(aid = it) }.toMutableList(); val pages = mutableListOf<Int>()
+        val pager = VideoFeedPager({ p -> pages += p; FeedPage(server.drop((p - 1) * 20).take(20), more = p * 20 < server.size) })
+        pager.load(); pager.load()
+        val revision = pager.state.value.revision
+        for (id in listOf(2L, 21L, 35L)) { server.removeAll { it.aid == id }; pager.removeFavorite("av$id") }
+        assertEquals(revision, pager.state.value.revision)
+        while (pager.state.value.more) pager.load()
+        assertEquals(server.map { it.aid }, pager.state.value.videos.map { it.aid }); assertEquals(listOf(1, 2, 2, 3, 4), pages)
+    }
+    @Test fun removingFromAFullyLoadedFavoriteListKeepsItComplete() = runBlocking {
+        val pager = VideoFeedPager({ FeedPage(videos(1, 2), more = false) }); pager.load(); pager.removeFavorite("av1")
+        assertEquals(listOf(2L), pager.state.value.videos.map { it.aid }); assertFalse(pager.state.value.more)
+    }
     @Test fun paginationAppendsUniqueItemsAndStopsOnRepeatedPage() = runBlocking {
         val pages = mutableListOf<Int>()
         val pager = VideoFeedPager({ p -> pages += p; FeedPage(if (p == 1) videos(1, 2) else videos(2, 3)) })

@@ -30,6 +30,16 @@ class AppViewModel: ViewModel() {
     val refreshing = account.map { it.checking }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.checking)
     private val _creator = MutableStateFlow<CreatorRequest?>(null)
     val creator = _creator.asStateFlow()
+    internal var videoWasShorts = false
+        private set
+    internal val floatingVideoPosition = MutableStateFlow(.95f to .15f)
+    internal val floatingVideoScale = MutableStateFlow(1f)
+    val playbackReturns = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    fun returnFromProfile(shorts: Boolean) {
+        closeCreator()
+        if (shorts) openShorts() else openPlayer()
+        playbackReturns.tryEmit(Unit)
+    }
     fun openCreator(video: Video) { if (video.mid > 0) _creator.value = CreatorRequest(CreatorProfile(video.mid, video.author, video.authorAvatar), video) }
     fun openCreator(profile: CreatorProfile) { if (profile.mid > 0) _creator.value = CreatorRequest(profile, Graph.player.state.value.detail?.video?.takeIf { it.mid == profile.mid }) }
     fun closeCreator() { _creator.value = null }
@@ -44,7 +54,8 @@ class AppViewModel: ViewModel() {
             _shortSessions.value = ShortSession(VideoFeedPager({ Graph.api.uploads(video.mid, it, keyword) }, videos, { it.kind == "video" }, initialPage = nextPage), videos.indexOfFirst { it.key == video.key }.coerceAtLeast(0))
         } else if (_route.value.name.startsWith("music")) playMusic(video) else openVideo(video)
     }
-    private fun newShortSession(videos: List<Video>) = ShortSession(VideoFeedPager({ Graph.api.feed("推荐", it) }, videos, { it.kind == "video" }))
+    private fun newShortSession(videos: List<Video>) = ShortSession(VideoFeedPager({ Graph.api.feed("推荐", it) }, videos,
+        { video -> video.kind == "video" && Graph.store.recommendations.rules(Graph.api.recommendationAccount()).none { it.matches(video) } }))
     init { refreshUser(); viewModelScope.launch { runCatching { Graph.api.warmUp() } } }
     fun navigate(name: String, argument: String = "", label: String = "") { stack.add(_route.value); _route.value = Route(name, argument, label) }
     fun root(name: String) {
@@ -53,8 +64,8 @@ class AppViewModel: ViewModel() {
     }
     fun closeMusicHome() { stack.clear(); _route.value = musicReturn }
     fun back(): Boolean { if (stack.isEmpty()) return false; _route.value = stack.removeAt(stack.lastIndex); return true }
-    fun openVideo(video: Video) { Graph.player.open(video); if (_route.value.name != "player") navigate("player") }
-    fun openPlayer(fullscreen: Boolean = false) { if (Graph.player.state.value.music) { openMusicPlayer(); return }; if (Graph.player.state.value.detail != null && _route.value.name != "player") navigate("player", if (fullscreen) "fullscreen" else "") }
+    fun openVideo(video: Video) { videoWasShorts = false; Graph.player.open(video); if (_route.value.name != "player") navigate("player") }
+    fun openPlayer(fullscreen: Boolean = false) { if (Graph.player.state.value.music) { openMusicPlayer(); return }; if (Graph.player.state.value.detail != null && _route.value.name != "player") { videoWasShorts = false; navigate("player", if (fullscreen) "fullscreen" else "") } }
     fun openMusicPlayer() { if (_route.value.name != "music_player") navigate("music_player") }
     fun playMusic(video: Video) {
         val current = Graph.player.state.value.detail?.video?.key == video.key
@@ -63,10 +74,11 @@ class AppViewModel: ViewModel() {
         openMusicPlayer()
     }
     fun openShorts(seed: Video? = null, queue: List<Video> = emptyList()) {
+        videoWasShorts = true
         if (seed != null || queue.isNotEmpty()) _shortSessions.value = newShortSession(listOfNotNull(seed) + queue)
         if (_route.value.name != "shorts") navigate("shorts")
     }
-    fun openCache(cache: CacheEntry) { Graph.player.playCache(cache); if (cache.type == "audio") openMusicPlayer() else navigate("player") }
+    fun openCache(cache: CacheEntry) { Graph.player.playCache(cache); if (cache.type == "audio") openMusicPlayer() else { videoWasShorts = false; navigate("player") } }
     fun requireLogin(action: () -> Unit) {
         if (session.canUseAccount()) action()
         else if (account.value.status == AccountStatus.STORAGE_UNAVAILABLE) { notices.tryEmit(account.value.message!!); refreshUser() }
@@ -76,7 +88,7 @@ class AppViewModel: ViewModel() {
         session.refresh(onVerified = onSuccess)
     }
     fun retryAccount() { session.refresh(force = true) }
-    fun onNetworkRecovered() { session.refresh(restartRunning = true); networkEpoch.value++; Graph.player.onNetworkRecovered() }
+    fun onNetworkRecovered() { session.refresh(restartRunning = true); networkEpoch.value++; Graph.player.onNetworkRecovered(); Graph.musicSync.onNetworkRecovered() }
     fun loggedIn() {
         session.refresh(force = true, restartRunning = true) { notices.tryEmit("登录成功") }
         if (account.value.canUseAccount && _route.value.name == "login") back()
@@ -89,6 +101,20 @@ class AppViewModel: ViewModel() {
         }
     }
     fun action(success: String, block: suspend () -> Unit) { viewModelScope.launch { try { block(); notices.emit(success) } catch (e: Exception) { if (e is CancellationException) throw e; notices.emit(e.message ?: "操作失败") } } }
+    fun markNotInterested(video: Video, reason: RecommendationReason, onSaved: () -> Unit, onError: (String, Boolean) -> Unit) {
+        val api = Graph.api; val account = api.recommendationAccount()
+        viewModelScope.launch {
+            try { api.dislikeRecommendation(video, reason) }
+            catch (e: Exception) {
+                if (e is CancellationException) throw e
+                onError(if (e is WriteOutcomeUnknown) "提交结果暂未确认，请稍后查看推荐，避免重复提交" else e.message ?: "反馈失败，请稍后重试", e is WriteOutcomeUnknown)
+                return@launch
+            }
+            try { Graph.store.recommendations.add(account, video, reason) }
+            catch (e: Exception) { if (e is CancellationException) throw e; notices.emit("已向B站反馈，当前列表刷新失败") }
+            onSaved(); notices.emit("已反馈不感兴趣")
+        }
+    }
     fun resolveLink(text: String) {
         val short = Regex("https://b23\\.tv/[0-9A-Za-z]+").find(text)?.value
         if (short != null) {

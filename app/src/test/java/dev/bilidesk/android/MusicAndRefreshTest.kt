@@ -48,6 +48,19 @@ class MusicAndRefreshTest {
         val q = queue().move(0, 3)
         assertEquals(song(1), q.current); assertEquals(song(1), q.tracks.last())
     }
+    @Test fun droppedOrderPreservesPlaybackPriorityAndConcurrentSongs() {
+        val q = queue(MusicMode.SHUFFLE).playNext(song(3).key).select(song(2).key).remove(song(4).key).add(song(5))
+        val moved = q.reorder(listOf(song(4).key, song(3).key, song(1).key, song(1).key, song(2).key))
+        assertEquals(listOf(song(3), song(1), song(2), song(5)), moved.tracks)
+        assertEquals(q.currentKey, moved.currentKey); assertEquals(q.nextUp, moved.nextUp)
+        assertEquals(q.remaining, moved.remaining); assertEquals(q.history, moved.history)
+    }
+    @Test fun queueNextSelectionTakesPriorityWithoutStartingOrDuplicatingASong() {
+        val q = queue(MusicMode.SHUFFLE).playNext(song(3).key).playNext(song(4).key).playNext(song(3).key)
+        assertEquals(song(1), q.current); assertEquals(listOf(song(3).key, song(4).key), q.nextUp)
+        assertEquals(song(3), q.advance(true)!!.current); assertEquals(q, q.playNext(q.currentKey))
+        assertEquals(q, q.playNext("unknown"))
+    }
     @Test fun persistenceRestoresQueueOrderModePriorityAndPosition() {
         val q = queue(MusicMode.SHUFFLE).add(song(5), true).select(song(3).key)
         val json = JSONObject(q.json(12345).toString()); assertEquals(q, MusicQueueState.from(json)); assertEquals(12345, json.getLong("position"))
@@ -61,6 +74,11 @@ class MusicAndRefreshTest {
         val cues = Lyrics.parse(JSONObject("""{"body":[{"from":5,"to":7,"content":"第二句"},{"from":0.5,"to":2,"content":"第一句"},{"from":3,"to":1,"content":"bad"},{"from":-1,"to":2,"content":"bad"}]}"""))
         assertEquals(2, cues.size); assertEquals(500, cues.first().startMs); assertEquals("第二句", cues.last().text)
         assertEquals(-1, Lyrics.current(cues, 200)); assertEquals(0, Lyrics.current(cues, 1000)); assertEquals(-1, Lyrics.current(cues, 3000)); assertEquals(1, Lyrics.current(cues, 6000))
+    }
+    @Test fun subtitleSoundMarkersAreNotPresentedAsLyricsAndRealWordsKeepTheirTiming() {
+        val cues = Lyrics.parse(JSONObject("""{"body":[{"from":0,"to":3,"content":"[Music]"},{"from":3,"to":6,"content":"♪ 伴奏 ♫"},{"from":6,"to":9,"content":"Music is my life"},{"from":9,"to":12,"content":"你的声音穿过晚风"},{"from":12,"to":15,"content":"（掌声）"}]}"""))
+        assertEquals(listOf("Music is my life", "你的声音穿过晚风"), cues.map { it.text })
+        assertEquals(listOf(6000L, 9000L), cues.map { it.startMs }); assertEquals(-1, Lyrics.current(cues, 1000))
     }
     @Test fun lockedSpeedIsChosenDuringDragAndCommittedOnRelease() {
         val gesture = PressPlaybackGesture()

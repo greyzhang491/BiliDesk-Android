@@ -33,6 +33,7 @@ app/
     MainActivity.kt          # Activity、外部链接、系统窗口与生命周期
     data/                   # API、凭据、模型、存储和可测试策略
     player/                 # 播放引擎、音乐队列、弹幕和媒体服务
+    sync/                   # 可选加密同步、设备快照、合并与联网补传
     download/               # 下载任务、Range 传输、合流和下载服务
     ui/                     # Compose 页面、布局策略、手势和视图模型
   src/test/                 # 本地 JVM 单元测试与模拟 HTTP 服务
@@ -54,7 +55,7 @@ validation/                 # 脱敏验证摘要和源码校验清单
 
 `AppViewModel.openVideo` / `playMusic` 将用户选择交给 `PlayerEngine`。引擎读取视频详情、分P与实际授权的 `PlayPlan`，准备 Media3 音视频源，并通过 `StateFlow` 提供状态。`MusicController` 与 `MusicQueue` 管理音乐队列、下一首优先及播放模式；`MusicSessionPlayer` 把系统上一首/下一首命令接入音乐逻辑。
 
-唱片、歌词或原视频是同一播放会话的不同展示方式。切页和切换展示不应重新建立第二个播放器，也不应重置当前曲目的进度。字幕只能来自可读取的视频字幕；没有字幕时展示原视频，不生成歌词。
+唱片、歌词或原视频是同一音乐会话的不同展示方式。0.2.5的原视频使用按需独立静音画面播放器跟随主音频时钟，避免切源打断；切换展示不重置当前曲目的进度。字幕只能来自可读取的视频字幕；没有歌词时显示状态，原视频由用户主动选择。
 
 0.1.8将纯音乐切换为真正的单音轨媒体源，跳过视频CDN测速；原视频按显式用户操作附加，保留主音轨媒体项与位置，切换时可能缓冲。`MusicAudioPolicy`按实际可用音轨选择码率，`MusicPreferences`保存外观与音质。`MusicLibrary`在独立偏好文件中串行确认保存多个本机歌单，编辑歌单不替换`MusicQueueState`；歌曲身份包含视频与cid。`MusicPlaylists`负责合集／多P选择和歌单编辑，`MusicAppearance`负责播放器DIY。
 
@@ -82,3 +83,9 @@ validation/                 # 脱敏验证摘要和源码校验清单
 - 首次0.1.6公开整理只增加导览、贡献约定与配置，并修正一个测试的回环地址；该版本清单保留为历史基线。0.1.7的运行代码变更及验证另见登录恢复说明和对应版本源码清单。
 
 文档写法参考 [Now in Android 的架构学习导览](https://github.com/android/nowinandroid/blob/main/docs/ArchitectureLearningJourney.md)，但本工程的实际结构以上述源码为准。
+
+## 可选云同步与浮动播放
+
+`MusicSync`观察本机歌单、队列与播放器操作，使用`SyncModel`产生逐项修订和每设备原子队列快照。`SyncCrypto`以随机恢复密钥压缩并认证加密白名单元数据，`WebDavSync`限制在固定HTTPS服务的专用子目录。授权由`SyncSecrets`经Android Keystore保护。`AutoSyncPolicy`区分本机保存与请求上传，`SyncUploadWorker`只补传已请求的更新。详细约束见[sync导览](../app/src/main/java/dev/bilidesk/android/sync/README.md)。
+
+`CreatorFloatingVideo`只重挂载已有视频画面，`FloatingVideoGeometry`处理位置、比例与缩放边界。双击根据来源会话返回普通或短视频路由；主页打开、移动和缩放均不能替换当前视频的MediaItem。

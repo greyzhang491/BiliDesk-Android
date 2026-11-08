@@ -48,15 +48,31 @@ import java.lang.ref.WeakReference
 internal object PlayerViewHost {
     internal var touchObserver: ((String) -> Unit)? = null
     private var current: WeakReference<PlayerView>? = null
+    private var floating: WeakReference<PlayerView>? = null
+    private var suspended: WeakReference<PlayerView>? = null
+    private var floatingPlayer: ExoPlayer? = null
     val currentView get() = current?.get()
     fun attach(view: PlayerView, exo: ExoPlayer) {
+        if (floating?.get()?.let { it !== view } == true && floatingPlayer === exo) { suspended = WeakReference(view); return }
+        switch(view, exo)
+    }
+    private fun switch(view: PlayerView, exo: ExoPlayer) {
         val previous = currentView
         if (previous === view && view.player === exo) return
         if (previous != null && previous.player !== exo) previous.player = null
         PlayerView.switchTargetView(exo, previous?.takeIf { it.player === exo }, view)
         current = WeakReference(view)
     }
+    fun attachFloating(view: PlayerView, exo: ExoPlayer) {
+        if (floating?.get() !== view) suspended = currentView?.takeIf { it !== view }?.let(::WeakReference)
+        floating = WeakReference(view); floatingPlayer = exo; switch(view, exo)
+    }
     fun release(view: PlayerView) {
+        if (floating?.get() === view) {
+            val exo = floatingPlayer; val restore = suspended?.get()
+            floating = null; suspended = null; floatingPlayer = null
+            if (exo != null && restore?.isAttachedToWindow == true) switch(restore, exo)
+        } else if (suspended?.get() === view) suspended = null
         if (currentView === view) current = null
         view.player = null
     }

@@ -49,9 +49,11 @@ class MusicLibrary(context: Context, preferenceName: String) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow(runCatching { MusicLibraryState.from(JSONObject(prefs.getString("library", "{}").orEmpty())) }.getOrDefault(MusicLibraryState()))
     val state = _state.asStateFlow()
+    internal suspend fun syncUpdate(block: (MusicLibraryState) -> MusicLibraryState) = change(block)
     private suspend fun change(block: (MusicLibraryState) -> MusicLibraryState) = mutex.withLock {
         withContext(Dispatchers.IO) {
             val next = block(_state.value)
+            if (next == _state.value) return@withContext
             if (!prefs.edit().putString("library", next.json().toString()).commit()) throw IOException("歌单保存失败，请检查设备存储空间")
             _state.value = next
         }

@@ -1,0 +1,69 @@
+{
+  "version": "0.2.5",
+  "versionCode": 16,
+  "verifiedAtUtc": "2026-11-07T19:00:50.190248+00:00",
+  "apkSha256": "b9eb7828e81402cae4dc57bd3237210f11841744981973632e1c731eb455db9e",
+  "bytes": 26533110,
+  "jvmTests": {
+    "passed": 185,
+    "failed": 0,
+    "skipped": 0
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 45
+  },
+  "phoneScenarios": 17,
+  "tabletScenarios": 17,
+  "certificateSha256": "bd251d933bce82738fdbd1bd62b6a87b6032782e32ae7a15d116e71711247c4d",
+  "alignment16Kb": true,
+  "sourceInputsFrozen": 148,
+  "scope": [
+    "Operation-driven uploads, twenty-minute continuous-playback safety checkpoint, local progress saving and worker intent gating",
+    "Per-device latest checkpoints, explicit selection of an older source and retention of other devices",
+    "Shared device renaming without advancing playback checkpoints; automatic and manual invitations with refreshed UI",
+    "Favorite folder/video removal, cancellation, rejection and ambiguous outcomes without replay",
+    "Discover cover long press and short-video account recommendation feedback",
+    "Four-corner floating video resize, move and return without media reload",
+    "Music queue per-track favorites and play-next, current-song location, drag preview and edge scrolling with one persisted drop",
+    "Explicit record/lyrics/original faces, subtitle sound marker filtering and silent on-demand picture without replacing primary audio",
+    "Music, comments, favorite creation, phone fullscreen gestures and tablet layout regressions"
+  ],
+  "runs": [
+    {
+      "passed": 11,
+      "apkSha256": "b9eb7828e81402cae4dc57bd3237210f11841744981973632e1c731eb455db9e",
+      "testApkSha256": "987b5f6ac54ac678c3305fc19ac976a7437842a57b808be4a27eaf56c5cffabc",
+      "device": "phone",
+      "suite": "features"
+    },
+    {
+      "passed": 6,
+      "apkSha256": "b9eb7828e81402cae4dc57bd3237210f11841744981973632e1c731eb455db9e",
+      "testApkSha256": "987b5f6ac54ac678c3305fc19ac976a7437842a57b808be4a27eaf56c5cffabc",
+      "device": "phone",
+      "suite": "regressions"
+    },
+    {
+      "passed": 11,
+      "apkSha256": "b9eb7828e81402cae4dc57bd3237210f11841744981973632e1c731eb455db9e",
+      "testApkSha256": "987b5f6ac54ac678c3305fc19ac976a7437842a57b808be4a27eaf56c5cffabc",
+      "device": "tablet",
+      "suite": "features"
+    },
+    {
+      "passed": 6,
+      "apkSha256": "b9eb7828e81402cae4dc57bd3237210f11841744981973632e1c731eb455db9e",
+      "testApkSha256": "987b5f6ac54ac678c3305fc19ac976a7437842a57b808be4a27eaf56c5cffabc",
+      "device": "tablet",
+      "suite": "regressions"
+    }
+  ],
+  "testAccounts": "synthetic only",
+  "limitations": [
+    "Android 15 emulators; physical devices were not tested for this release.",
+    "Synthetic platform tests do not establish actual account-write acceptance or recommendation algorithm effects.",
+    "0.2.5 WebDAV/coordinator tests use isolated in-memory transport; a separate 0.2.3 protocol probe is not full current end-to-end validation.",
+    "OS force-stop, background restrictions and loss of power/network can delay uploads."
+  ]
+}
